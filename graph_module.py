@@ -3,9 +3,9 @@ import pyqtgraph as pg
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import QIntValidator, QPalette, QFontMetrics, QStandardItem
 from PyQt5.QtCore import Qt, QObject, QEvent
-import session_handler as handler
+
 from collapsible_module import Collapsible
-from timestamper import TimeStamper
+
 
 # ------------------------------
 # Custom Class for our GraphModule. By inheriting from it, we can create a custom canvas for Matplotlib within the PyQt application.
@@ -24,7 +24,6 @@ class LiveGraph(QWidget):
         self,
         central_widget: QWidget,
         plot : pg,
-        timestamper: TimeStamper,
     ):
         super().__init__()
         self.central_widget = central_widget
