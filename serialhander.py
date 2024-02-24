@@ -18,7 +18,7 @@ class SerialHandler:
             "Other": {"DRS Open/Close": [], "Steering Angle": [], "Throttle Input": [], "Battery Voltage": [], "DAQ Current Draw": []}
         }
         '''
-        data = {
+        self.data = {
             "Timestamp": [],
             "X Acceleration": [],
             "Y Acceleration": [],
@@ -46,13 +46,16 @@ class SerialHandler:
         }
     #main file should call this to retrieve data a it is updated via serial monitor and push that data to all graphs in dash
     def getData(column_name):
-        return data[column_name]
+        return self.data[column_name]
 
-    def update_data(self, column_name, value):
-        if column_name in self.data:
-            self.data[column_name].append(value)
-        else:
-            print("Invalid column name.")
+    def update_data(self, temp_data):
+        for column_name, values in temp_data.items():
+            if column_name in self.data:
+                self.data[column_name].append(values)
+            else:
+                print("Invalid column name:", column_name)
+
+
     '''
     def start_reading(self):
         self.reading_thread = threading.Thread(target=self._read_data)
@@ -65,11 +68,19 @@ class SerialHandler:
             while True:
                 line = self.serial.readline().decode().strip()
                 #This is formatted that the while 
-                if (line == "" or line == "IMU READ" or line == "WHEEL READ" or line == "DATALOGREAD"):
+                if (line == "" or "IMU READ:" in line or "WHEEL READ:" in line or "DATALOGREAD:" in line):
                     break
-                key, value = line.split(":")
-                temp_data[key.strip()] = value.strip()
+                try:
+                    key, value = line.split(":")
+                except ValueError:
+                    print("Error: Line does not contain expected key-value pair:", line)
+                    continue  # Skip this line and proceed with the next one
+
+                print("Key: " + key + ", value" + value)
+                temp_data[key.strip()] = float(value.strip())
                 self.update_data(temp_data)
+
+        print(self.data)
 
     def clear_input_buffer(self):
         while self.serial.in_waiting > 0:

@@ -35,15 +35,17 @@ class LiveGraph(QWidget):
 
         self.sidebox.setAlignment(Qt.AlignTop)
         self.x_combo = QComboBox(self.central_widget)
-        self.y_combo = CheckableComboBox(self)
+        #self.y_combo = CheckableComboBox(self)
+        self.y_combo= QComboBox(self.central_widget)
         self.y_combo.setFixedHeight(25)
-        self.x_combo.currentIndexChanged.connect(self.plot_graph)
-        self.y_combo.model().dataChanged.connect(self.plot_graph)
+        #self.x_combo.currentIndexChanged.connect(self.plot_graph)
+        #self.y_combo.model().dataChanged.connect(self.plot_graph)
+        #self.y_combo.currentIndexChanged.connect(self.plot_graph)
 
         # creating dropdowns and updating dataset when changed
         self.x_set = QComboBox(self.central_widget)
-        self.x_set.showEvent = lambda _: self.init_metadata()
-        self.x_set.currentIndexChanged.connect(self.set_active_data)
+        #self.x_set.showEvent = lambda _: self.init_metadata()
+        #self.x_set.currentIndexChanged.connect(self.set_active_data)
 
         # creates labels and textboxes for editing graph limits and trims
         trim_upper = QHBoxLayout()
@@ -54,7 +56,7 @@ class LiveGraph(QWidget):
         self.selected_x = None
 
         # creates labels and adds comboboxes to select columns in the graph
-        self.set_combo_box()
+        #self.set_combo_box()
         self.sidebox.addWidget(QLabel("Select Dataset:"))
         self.sidebox.addWidget(self.x_set)
         self.sidebox.addWidget(QLabel("Select X Axis Column:"))
@@ -64,6 +66,9 @@ class LiveGraph(QWidget):
         self.sidebox.addLayout(self.trim_container)
 
         self.sidebox2.setAlignment(Qt.AlignTop)
+    
+        def plot_graph(self):
+            pass
 
 # ------------------------------
 # This class creates a graphical application with a main window that allows users to add and configure multiple datasets for plotting.
@@ -72,7 +77,7 @@ class LiveGraph(QWidget):
 
 
 class GraphModule(QMainWindow):
-    def __init__(self, timestamper=None):
+    def __init__(self):
         super().__init__()
         self.data_set = []
         self.setWindowTitle("Module")
@@ -92,20 +97,19 @@ class GraphModule(QMainWindow):
         graph_widget = QWidget()
         self.plot_widget = pg.PlotWidget()
 
-        toolbar = NavigationToolbar(self.plot_widget, self)
+        #toolbar = NavigationToolbar(self.plot_widget, self)
         plot_layout = QVBoxLayout(graph_widget)
         #plot_layout.addWidget(toolbar)
         plot_layout.addWidget(self.plot_widget)
         self.layout.addWidget(graph_widget)
 
-        self.timestamper = timestamper
         self.setChooser = LiveGraph(
-            self.central_widget, self.plot_widget, timestamper
+            self.central_widget, self.plot_widget
         )
-        sidebox, sidebox1 = self.setChooser.get_scroll_areas()
+        #sidebox, sidebox1 = self.setChooser.get_scroll_areas()
         self.data_set.append(self.setChooser)
-        sideBoxLayout.addLayout(sidebox)
-        sideBoxLayout.addLayout(sidebox1)
+        #sideBoxLayout.addLayout(sidebox)
+        #sideBoxLayout.addLayout(sidebox1)
 
         #self.add_dataset_button = QPushButton("Add Dataset", self.central_widget)
         #self.add_dataset_button.clicked.connect(self.add_dataset)
@@ -131,13 +135,13 @@ class GraphModule(QMainWindow):
     def add_dataset(self):
         """Deprecated function"""
         setChooser = DatasetChooser(
-            self.central_widget, self.plot_widget, self.timestamper
+            self.central_widget, self.plot_widget
         )
         self.data_set.append(setChooser)
         sideBoxLayout = QVBoxLayout()
-        sidebox, sidebox1 = setChooser.get_scroll_areas_without_trim()
-        sideBoxLayout.addLayout(sidebox)
-        sideBoxLayout.addLayout(sidebox1)
+        #sidebox, sidebox1 = setChooser.get_scroll_areas_without_trim()
+        #sideBoxLayout.addLayout(sidebox)
+        #sideBoxLayout.addLayout(sidebox1)
         #sideBoxLayout.insertWidget(-1, self.add_dataset_button)
         # self.layout.addLayout(sideBoxLayout)
         collapsible_container = Collapsible()

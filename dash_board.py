@@ -84,10 +84,10 @@ class CustomDashboard(QMainWindow):
         self.layout.addLayout(self.toolbar)
 
 
-        self.serialmonitor = SerialHandler()
+        self.serialmonitor = SerialHandler("COM6", 9600)
         self.reading_thread = threading.Thread(target=self.serialmonitor._read_data)
-        # self.reading_thread.start()
-
+        self.reading_thread.start()
+        
         # I probably dont want to have a dataframe in here. Maybe try to create a call back in graph_module to regraph when the dataframe in serial changes
         # Regardless I dont have an elegant solution now.
 
@@ -129,7 +129,7 @@ class CustomDashboard(QMainWindow):
         This subwindow is added to the Multiple Document Interface which is the meat and potatoes of our application.
         """
         sub_window = QMdiSubWindow()
-        self.graph_modules.append(GraphModule(timestamper=self.timestamper))
+        self.graph_modules.append(GraphModule())
         sub_window.setWidget(self.graph_modules[-1])
         sub_window.setGeometry(self.graph_modules[-1].geometry())
         self.mdi_area.addSubWindow(sub_window)
