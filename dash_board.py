@@ -17,6 +17,8 @@ from PyQt5.QtWidgets import (
 import os
 from PyQt5.QtGui import QIcon
 from graph_module import GraphModule
+from serialhander import SerialHandler
+import threading
 import glob
 import pickle
 from datetime import datetime
@@ -80,6 +82,15 @@ class CustomDashboard(QMainWindow):
         self.toolbar = QHBoxLayout()
         self.footer = QStatusBar()
         self.layout.addLayout(self.toolbar)
+
+
+        self.serialmonitor = SerialHandler()
+        self.reading_thread = threading.Thread(target=self.serialmonitor._read_data)
+        # self.reading_thread.start()
+
+        # I probably dont want to have a dataframe in here. Maybe try to create a call back in graph_module to regraph when the dataframe in serial changes
+        # Regardless I dont have an elegant solution now.
+
 
         # ------------------------------
         # Adding Buttons to Layout and Window
