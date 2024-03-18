@@ -18,6 +18,7 @@ import os
 from PyQt5.QtGui import QIcon
 from graph_module import GraphModule
 from serialhander import SerialHandler
+from serial.tools import list_ports
 import threading
 import glob
 import pickle
@@ -83,10 +84,18 @@ class CustomDashboard(QMainWindow):
         self.footer = QStatusBar()
         self.layout.addLayout(self.toolbar)
 
-
-        self.serialmonitor = SerialHandler("COM6", 9600)
-        self.reading_thread = threading.Thread(target=self.serialmonitor._read_data)
-        self.reading_thread.start()
+        try:
+            port = self.find_available_serial_port()
+            if port:
+                print(f"Found open serial port: {port}")
+                self.serialmonitor = SerialHandler(port, 9600)
+                reading_thread = threading.Thread(target=self.serial_read_loop)
+                reading_thread.start()
+                self.serialmonitor.data_changed.connect(self.graph_module.update_graph)
+            else:
+                print("No open serial ports found.")
+        except Exception as e:
+            print(f"Error: {e}")
         
         # I probably dont want to have a dataframe in here. Maybe try to create a call back in graph_module to regraph when the dataframe in serial changes
         # Regardless I dont have an elegant solution now.
@@ -119,10 +128,16 @@ class CustomDashboard(QMainWindow):
         self.central_widget = QWidget()
         self.central_widget.setLayout(self.layout)
         self.setCentralWidget(self.central_widget)
+      
+    def find_available_serial_port(self):
+        available_ports = list_ports.comports()
+        for port in available_ports:
+            if port.device.startswith("COM"):  #This using Windows convention, need to use /dev/tty if linux or mac
+                return port.device
+        return None
 
-        # ------------------------------
-        # Functions Paired with Button Press
-        # ------------------------------
+    def serial_read_loop(self):
+        self.serialmonitor._read_data()
 
     def create_graph_module(self):
         """Upon a connection with a button, this will create a sub-window which is a container for a GraphModule (check class)

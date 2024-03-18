@@ -1,23 +1,14 @@
 import pandas as pd
-
+from PyQt5.QtCore import QObject, pyqtSignal
 import serial
 
 
-class SerialHandler:
+class SerialHandler(QObject):
+    data_changed = pyqtSignal(dict)
     def __init__(self, serial_port, baudrate):
         self.serial_port = serial_port #if windows should be a COM and then a number, usually COM3 or COM4, if linux/mac use '/dev/ttyUSB0' or such
         self.baudrate = baudrate
         self.serial = serial.Serial(self.serial_port, self.baudrate)
-        '''
-        self.data = {
-            "Acceleration": {"X": [], "Y": [], "Z": []},
-            "Angular Rate": {"X": [], "Y": [], "Z": []},
-            "Speed": {"FL": [], "FR": [], "BL": [], "BR": []},
-            "Brake Temperature": {"FL": [], "FR": [], "BL": [], "BR": []},
-            "Ambient Temperature": {"FL": [], "FR": [], "BL": [], "BR": []},
-            "Other": {"DRS Open/Close": [], "Steering Angle": [], "Throttle Input": [], "Battery Voltage": [], "DAQ Current Draw": []}
-        }
-        '''
         self.data = {
             "Timestamp": [],
             "X Acceleration": [],
@@ -44,9 +35,9 @@ class SerialHandler:
             "Battery Voltage": [], 
             "DAQ Current Draw": []
         }
-    #main file should call this to retrieve data a it is updated via serial monitor and push that data to all graphs in dash
-    def getData(column_name):
-        return self.data[column_name]
+    
+    def getData(self):
+        return self.data
 
     def update_data(self, temp_data):
         for column_name, values in temp_data.items():
@@ -54,13 +45,8 @@ class SerialHandler:
                 self.data[column_name].append(values)
             else:
                 print("Invalid column name:", column_name)
+        self.data_changed.emit(self.data)
 
-
-    '''
-    def start_reading(self):
-        self.reading_thread = threading.Thread(target=self._read_data)
-        self.reading_thread.start()
-    '''
     def _read_data(self):
         temp_data = {}
         #Should go for 6 iterations or two full updates / new lines into data

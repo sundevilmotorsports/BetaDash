@@ -32,7 +32,7 @@ class Collapsible(QWidget):
         self.toggleButton.setArrowType(Qt.RightArrow)
         self.toggleButton.setText(title)
         self.toggleButton.setCheckable(True)
-        self.toggleButton.setChecked(True)
+        self.toggleButton.setChecked(False)
 
         self.headerLine.setFrameShape(QFrame.HLine)
         self.headerLine.setFrameShadow(QFrame.Sunken)
@@ -43,7 +43,7 @@ class Collapsible(QWidget):
         self.contentArea.setMaximumWidth(self.CONTENT_AREA_MAX_HEIGHT)
         self.contentArea.setMinimumHeight(self.CONTENT_AREA_MIN_HEIGHT)
         self.contentArea.setMinimumWidth(self.CONTENT_AREA_MIN_WIDTH)
-        self.contentArea.show()
+        self.contentArea.hide()
 
         for _ in range(3):
             self.toggleAnimation.addAnimation(QPropertyAnimation(self, b"minimumWidth"))
