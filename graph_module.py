@@ -84,6 +84,8 @@ class GraphModule(QMainWindow):
 
         self.initialize_combo_boxes()
 
+        self.graph_indice = 0
+
 
     def reset(self):
         self.pause_graph()
@@ -93,8 +95,11 @@ class GraphModule(QMainWindow):
     def set_labels(self):
         x_label = self.x_combo.currentText()
         y_label = self.y_combo.currentText()
+        self.plot_widget.clear()
         self.plot_widget.setLabel('bottom', text=x_label)
         self.plot_widget.setLabel('left', text=y_label)
+        
+
 
     def initialize_combo_boxes(self):
         # Clear existing items from combo boxes
@@ -134,9 +139,24 @@ class GraphModule(QMainWindow):
 
     @pyqtSlot(dict)
     def update_graph(self, new_data):
-        for column_name, values in new_data.items():
-            plot_data_item = self.plot_widget.plot()
-            plot_data_item.setData(x=range(len(values)), y=values)
+        x_column = self.x_combo.currentText()
+        y_column = self.y_combo.currentText()
+        
+        if x_column in new_data and y_column in new_data:
+            try:
+                self.plot_widget.plot().setData(x=new_data[x_column], y=new_data[y_column],)
+            except Exception as e:
+                if "X and Y arrays must be the same shape" in str(e):
+                    min_size = min(len(new_data[x_column]), len(new_data[y_column]))
+                    x_values = new_data[x_column][:min_size]
+                    y_values = new_data[y_column][:min_size]
+                    self.plot_widget.plot().setData(x=x_values, y=y_values)
+        else:
+            print("Not able to plot")
+
+
+    def plot_graph(self):
+        pass
 
     def get_info(self):
         """Getter that returns an array with the layouts of the sideboxes"""

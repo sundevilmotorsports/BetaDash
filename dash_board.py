@@ -18,7 +18,7 @@ import os
 from PyQt5.QtGui import QIcon
 from graph_module import GraphModule
 from serialhander import SerialHandler
-from serial.tools import list_ports
+import serial.tools.list_ports
 import threading
 import glob
 import pickle
@@ -85,15 +85,26 @@ class CustomDashboard(QMainWindow):
         self.layout.addLayout(self.toolbar)
 
         try:
-            port = self.find_available_serial_port()
-            if port:
-                print(f"Found open serial port: {port}")
-                self.serialmonitor = SerialHandler(port, 9600)
-                reading_thread = threading.Thread(target=self.serial_read_loop)
-                reading_thread.start()
-                self.serialmonitor.data_changed.connect(self.graph_module.update_graph)
+            # Get a list of available serial ports
+            available_ports = serial.tools.list_ports.comports()
+
+            # Iterate through each available port and try to connect
+            for port in available_ports:
+                try:
+                    print(f"Attempting to connect to {port.name}")
+                    self.serialmonitor = SerialHandler(port.name, 9600)
+                    reading_thread = threading.Thread(target=self.serial_read_loop)
+                    reading_thread.daemon = True
+                    reading_thread.start()
+                    self.serialmonitor.data_changed.connect(self.update_all_graphs)
+                    print(f"Connected to {port.name}")
+                    break  # Break out of the loop if connection is successful
+                except Exception as e:
+                    print(f"Error connecting to {port.name}: {e}")
+
             else:
                 print("No open serial ports found.")
+
         except Exception as e:
             print(f"Error: {e}")
         
@@ -112,6 +123,10 @@ class CustomDashboard(QMainWindow):
         self.save_dashboard_button = QPushButton("Save Dashboard")
         self.save_dashboard_button.setMaximumWidth(200)
         self.save_dashboard_button.clicked.connect(self.save_dashboard)
+        
+        self.stop_reading_button = QPushButton("Stop Serial Read")
+        self.stop_reading_button.setMaximumWidth(200)
+        self.stop_reading_button.clicked.connect(self.stop_serial_read)
 
         # Populate drop down window with available session objects
         for session in self.sessions:
@@ -121,6 +136,7 @@ class CustomDashboard(QMainWindow):
         # Add all buttons to the toolbar
         self.toolbar.addWidget(self.graph_module_button)
         self.toolbar.addWidget(self.save_dashboard_button)
+        self.toolbar.addWidget(self.stop_reading_button)
 
         self.toolbar.addStretch(1)
         self.layout.addWidget(self.mdi_area)
@@ -138,6 +154,13 @@ class CustomDashboard(QMainWindow):
 
     def serial_read_loop(self):
         self.serialmonitor._read_data()
+
+    def stop_serial_read(self):
+        self.serialmonitor.stop_reading()
+
+    def update_all_graphs(self, new_data):
+        for graphmodule in self.graph_modules:
+            graphmodule.update_graph(new_data)
 
     def create_graph_module(self):
         """Upon a connection with a button, this will create a sub-window which is a container for a GraphModule (check class)
