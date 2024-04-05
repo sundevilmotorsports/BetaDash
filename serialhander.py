@@ -1,16 +1,20 @@
 import pandas as pd
 from PyQt5.QtCore import QObject, pyqtSignal
 import serial
+import time
 
 
 class SerialHandler(QObject):
     data_changed = pyqtSignal(dict)
-    def __init__(self, serial_port, baudrate):
+    def __init__(self, serial_port, baudrate, samplerate, buffertime):
         super().__init__()
         self.serial_port = serial_port #if windows should be a COM and then a number, usually COM3 or COM4, if linux/mac use '/dev/ttyUSB0' or such
         self.baudrate = baudrate
         self.serial = serial.Serial(self.serial_port, self.baudrate)
         self.is_reading = True ## very important for killing thread when we want to
+        self.sample_rate = samplerate ## Hz
+        self.buffer_time = buffertime ## seconds
+        self.last_read_time = time.time() ## used for measure buffer
         self.data = {
             "Timestamp (s)": [],
             "X Acceleration (mG)": [],
@@ -37,19 +41,29 @@ class SerialHandler(QObject):
             "Battery Voltage": [], 
             "DAQ Current Draw": []
         }
+
+
+    def set_sample_rate(self, rate):
+        self.sample_rate = rate
+
+    def set_buffer_time(self, time):
+        self.buffer_time = time
     
     def getData(self, column_name):
         return self.data[column_name]
 
-    def update_data(self, temp_data):
+    def update_data(self, temp_data, last_read_time):
         #Serves two purposes, add temp_data to data repository (self.data) and emit the newly acquired data which will call update_graph in graph_module
         for column_name, values in temp_data.items():
             if column_name in self.data:
                 self.data[column_name].append(values)
             else:
                 print("Invalid column name:", column_name)
-        
-        self.data_changed.emit(temp_data)
+        #print("current time: ", time.time())
+        if (time.time() - self.last_read_time >= self.buffer_time):
+            self.data_changed.emit(self.data)
+            self.last_read_time = time.time()
+            print("data changed emitted")
 
     def _read_data(self):
         #Should go for 6 iterations or two full updates / new lines into data
@@ -66,11 +80,19 @@ class SerialHandler(QObject):
                     print("Error: Line does not contain expected key-value pair:", line)
                     continue  # Skip this line and proceed with the next one
 
-                print("Key: " + key + ", value" + value)
+                #print("Key: " + key + ", value" + value)
                 temp_data[key.strip()] = float(value.strip())
-                self.update_data(temp_data)
+                #self.last_read_time = time.time()
+                self.update_data(temp_data, self.last_read_time)
+                #print("update_data called", " lastreadtime: ", self.last_read_time)
 
+                
         #print(self.data)
+
+
+    def emit_data_changed(self):
+        print("Emitting data has changed to all instances of graph_module.py with latest data:", self.data)
+        self.data_changed.emit(self.data)
 
     def stop_reading(self):
         print("Serial Reading is Stopping")
@@ -81,5 +103,3 @@ class SerialHandler(QObject):
             self.serial.readline()
         print("Serial Input Buffer Cleared")
                 
-
-

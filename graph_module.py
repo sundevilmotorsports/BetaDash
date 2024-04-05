@@ -12,6 +12,7 @@ from PyQt5.QtCore import Qt, pyqtSlot
 import pyqtgraph as pg
 from collapsible_module import Collapsible
 from pyqtgraph import PlotDataItem
+import time
 
 class GraphModule(QMainWindow):
     def __init__(self):
@@ -99,8 +100,6 @@ class GraphModule(QMainWindow):
         self.plot_widget.setLabel('bottom', text=x_label)
         self.plot_widget.setLabel('left', text=y_label)
         
-
-
     def initialize_combo_boxes(self):
         # Clear existing items from combo boxes
         self.x_combo.clear()
@@ -144,13 +143,21 @@ class GraphModule(QMainWindow):
         
         if x_column in new_data and y_column in new_data:
             try:
-                self.plot_widget.plot().setData(x=new_data[x_column], y=new_data[y_column],)
+                self.plot_widget.plot().setData(x=new_data[x_column], y=new_data[y_column])
+                start_index = self.graph_indice
+                for i in range(start_index, len(new_data[x_column])):
+                    #x_value = new_data[x_column][i]
+                    self.plot_widget.setXRange(max(0, new_data[x_column][i]-30), new_data[x_column][i])
+                    time.sleep(.1)
+                self.graph_indice = start_index
             except Exception as e:
                 if "X and Y arrays must be the same shape" in str(e):
                     min_size = min(len(new_data[x_column]), len(new_data[y_column]))
                     x_values = new_data[x_column][:min_size]
                     y_values = new_data[y_column][:min_size]
                     self.plot_widget.plot().setData(x=x_values, y=y_values)
+                else:
+                    print(e)
         else:
             print("Not able to plot")
 

@@ -92,7 +92,7 @@ class CustomDashboard(QMainWindow):
             for port in available_ports:
                 try:
                     print(f"Attempting to connect to {port.name}")
-                    self.serialmonitor = SerialHandler(port.name, 9600)
+                    self.serialmonitor = SerialHandler(port.name, 9600, 1, 5)
                     reading_thread = threading.Thread(target=self.serial_read_loop)
                     reading_thread.daemon = True
                     reading_thread.start()
