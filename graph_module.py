@@ -6,16 +6,22 @@ from PyQt5.QtWidgets import (
     QLabel,
     QComboBox,
     QPushButton,
-    QStatusBar
+    QStatusBar,
+    QCheckBox
 )
-from PyQt5.QtCore import Qt, pyqtSlot
+from PyQt5.QtCore import Qt, pyqtSlot, QPointF
+from PyQt5.QtGui import QColor, QPen, QFont
+from pyqtgraph.Qt import QtCore
+from pyqtgraph.Qt import QtGui
 import pyqtgraph as pg
 from collapsible_module import Collapsible
 from pyqtgraph import PlotDataItem
 import time
+import numpy as np
+import serialhander as SerialHandler
 
 class GraphModule(QMainWindow):
-    def __init__(self):
+    def __init__(self, serialhander : SerialHandler):
         super().__init__()
         self.data_set = []
         self.setWindowTitle("Graph Module")
@@ -34,11 +40,13 @@ class GraphModule(QMainWindow):
         sideBoxLayout = QVBoxLayout()
         graph_widget = QWidget()
         self.plot_widget = pg.PlotWidget()
+        #self.plot_widget.setBackground(QColor('lightgray'))
+        self.pen = pg.mkPen(color='red', width=1)
 
-        plot_layout = QVBoxLayout(graph_widget)
-        plot_layout.addWidget(self.plot_widget)
-        self.layout.addWidget(graph_widget)
+        self.serialhandler = serialhander
+        self.serialhandler.data_changed.connect(self.update_graph)
 
+        self.layout.addWidget(self.plot_widget)
         self.sidebox = QVBoxLayout()
         self.sidebox2 = QVBoxLayout()
 
@@ -85,8 +93,89 @@ class GraphModule(QMainWindow):
 
         self.initialize_combo_boxes()
 
-        self.graph_indice = 0
+        self.checkbox = QCheckBox("Toggle Crosshair")
+        self.checkbox.setChecked(False)
+        self.sidebox.addWidget(self.checkbox)
+        self.crosshair_enable = False
+        self.checkbox.stateChanged.connect(self.toggle)
 
+        self.graph_indice = 0
+        
+    
+    def initCrosshair(self):
+        if self.crosshair_enable:
+            self.crosshair_v = pg.InfiniteLine(angle=90, movable=False)
+            self.crosshair_h = pg.InfiniteLine(angle=0, movable=False)
+            self.plot_widget.addItem(self.crosshair_v, ignoreBounds=True)
+            self.plot_widget.addItem(self.crosshair_h, ignoreBounds=True)
+
+            self.x_label = pg.TextItem("", anchor=(0, 1))
+            self.y_label = pg.TextItem("", anchor=(0, 1))
+            self.plot_widget.addItem(self.x_label, ignoreBounds=True)
+            self.plot_widget.addItem(self.y_label, ignoreBounds=True)
+
+            self.proxy = pg.SignalProxy(self.plot_widget.scene().sigMouseMoved, rateLimit=60, slot=self.mouseMoved)
+
+    def removeCrosshair(self):
+        try:
+            self.plot_widget.removeItem(self.crosshair_h)
+            self.plot_widget.removeItem(self.crosshair_v)
+            self.plot_widget.removeItem(self.x_label)
+            self.plot_widget.removeItem(self.y_label)
+        except Exception as e:
+            print(str(e))
+
+    def mouseMoved(self, e):
+        pos = e[0]
+        if self.plot_widget.sceneBoundingRect().contains(pos) and self.crosshair_enable:
+            mousePoint = self.plot_widget.getPlotItem().vb.mapSceneToView(pos)
+            self.crosshair_v.setPos(mousePoint.x())
+            self.crosshair_h.setPos(mousePoint.y())
+
+            x_pos = mousePoint.x()
+            y_pos = mousePoint.y()
+            x_text = f"X: {x_pos:.2f}"  # Limiting digits to 2 decimal places
+            y_text = f"Y: {y_pos:.2f}"  # Limiting digits to 2 decimal places
+            self.x_label.setText(x_text)
+            self.y_label.setText(y_text)
+            label_color = pg.mkColor('g')
+            self.x_label.setColor(label_color)
+            self.y_label.setColor(label_color)
+
+            x_pos = x_pos + self.x_label.boundingRect().width() + 5
+            y_pos = y_pos - self.x_label.boundingRect().height()
+
+            text_height = self.x_label.boundingRect().height()
+            if mousePoint.x() + self.x_label.boundingRect().width() > self.plot_widget.plotItem.width():
+                x_pos = mousePoint.x() - 5 - self.x_label.boundingRect().width()
+            elif mousePoint.x() + self.y_label.boundingRect().width() > self.plot_widget.plotItem.width():
+                x_pos = mousePoint.x() - 5 - self.x_label.boundingRect().width()
+            if mousePoint.y() - self.x_label.boundingRect().height() - 2 * text_height - 5 < 0:
+                y_pos += text_height * 2 + 5
+
+            x_marker_point = self.plot_widget.plotItem.vb.mapSceneToView(
+                QtCore.QPointF(x_pos, y_pos - self.x_label.boundingRect().height()))
+            self.x_label.setPos(x_marker_point.x(), x_marker_point.y())
+
+            # Move Y marker to position
+            y_marker_point = self.plot_widget.plotItem.vb.mapSceneToView(QtCore.QPointF(x_pos, y_pos))
+            self.y_label.setPos(y_marker_point.x(), y_marker_point.y())
+            '''
+            self.x_label.setPos(mousePoint.x() + label_offset, 
+                                self.plot_widget.plotItem.vb.viewRect().bottom() - x_label_height_offset)
+            self.y_label.setPos(self.plot_widget.plotItem.vb.viewRect().left(), 
+                                mousePoint.y() + label_offset)
+            '''
+
+    def toggle(self, state):
+        if state == 0:
+            self.crosshair_enable = False
+            self.removeCrosshair()
+            print("Checkbox is unchecked")
+        else:
+            self.crosshair_enable = True
+            self.initCrosshair()
+            print("Checkbox is checked")
 
     def reset(self):
         self.pause_graph()
@@ -97,6 +186,9 @@ class GraphModule(QMainWindow):
         x_label = self.x_combo.currentText()
         y_label = self.y_combo.currentText()
         self.plot_widget.clear()
+        self.initCrosshair()
+        font = QFont()
+        font.setPointSize(12)
         self.plot_widget.setLabel('bottom', text=x_label)
         self.plot_widget.setLabel('left', text=y_label)
         
@@ -143,13 +235,10 @@ class GraphModule(QMainWindow):
         
         if x_column in new_data and y_column in new_data:
             try:
-                self.plot_widget.plot().setData(x=new_data[x_column], y=new_data[y_column])
-                start_index = self.graph_indice
-                for i in range(start_index, len(new_data[x_column])):
-                    #x_value = new_data[x_column][i]
-                    self.plot_widget.setXRange(max(0, new_data[x_column][i]-30), new_data[x_column][i])
-                    time.sleep(.1)
-                self.graph_indice = start_index
+                x_values = np.asarray(new_data[x_column]).flatten() 
+                y_values = np.asarray(new_data[y_column]).flatten()
+                self.plot_widget.plot().setData(x=x_values, y=y_values, pen=self.pen)
+                self.plot_widget.setXRange(max(0, x_values[-1]-100), x_values[-1]+10)
             except Exception as e:
                 if "X and Y arrays must be the same shape" in str(e):
                     min_size = min(len(new_data[x_column]), len(new_data[y_column]))
@@ -157,7 +246,7 @@ class GraphModule(QMainWindow):
                     y_values = new_data[y_column][:min_size]
                     self.plot_widget.plot().setData(x=x_values, y=y_values)
                 else:
-                    print(e)
+                    print("error", e)
         else:
             print("Not able to plot")
 

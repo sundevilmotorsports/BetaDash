@@ -2,7 +2,7 @@ import pandas as pd
 from PyQt5.QtCore import QObject, pyqtSignal
 import serial
 import time
-
+import random
 
 class SerialHandler(QObject):
     data_changed = pyqtSignal(dict)
@@ -67,10 +67,21 @@ class SerialHandler(QObject):
 
     def _read_data(self):
         #Should go for 6 iterations or two full updates / new lines into data
+        count = 0
         while self.is_reading:
-            temp_data = {}
+            temp_data = {
+            "Timestamp (s)": [],
+            "X Acceleration (mG)": []}
+            temp_data["Timestamp (s)"].append(count)
+            count = count+1
+            temp_data["X Acceleration (mG)"].append(random.random())
+            print("temp_data updated")
+            time.sleep(.1)
+            self.update_data(temp_data, self.last_read_time)
+            '''
             line = self.serial.readline().decode().strip()
             #This is formatted that the while 
+            
             if (line == "" or "IMU READ:" in line or "WHEEL READ:" in line or "DATALOGREAD:" in line):
                 pass
             else:
@@ -85,6 +96,7 @@ class SerialHandler(QObject):
                 #self.last_read_time = time.time()
                 self.update_data(temp_data, self.last_read_time)
                 #print("update_data called", " lastreadtime: ", self.last_read_time)
+                '''
 
                 
         #print(self.data)
