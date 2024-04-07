@@ -3,6 +3,7 @@ from PyQt5.QtCore import QObject, pyqtSignal
 import serial
 import time
 import random
+from collections import deque
 
 class SerialHandler(QObject):
     data_changed = pyqtSignal(dict)
@@ -15,6 +16,7 @@ class SerialHandler(QObject):
         self.sample_rate = samplerate ## Hz
         self.buffer_time = buffertime ## seconds
         self.last_read_time = time.time() ## used for measure buffer
+        self.data_queue = {}
         self.data = {
             "Timestamp (s)": [],
             "X Acceleration (mG)": [],
@@ -42,6 +44,9 @@ class SerialHandler(QObject):
             "DAQ Current Draw": []
         }
 
+        for column_name in self.data.keys():
+            self.data_queue[column_name] = deque(maxlen=100)
+
 
     def set_sample_rate(self, rate):
         self.sample_rate = rate
@@ -56,12 +61,18 @@ class SerialHandler(QObject):
         #Serves two purposes, add temp_data to data repository (self.data) and emit the newly acquired data which will call update_graph in graph_module
         for column_name, values in temp_data.items():
             if column_name in self.data:
+                self.data_queue[column_name].append(values)
+                '''
+                if len(self.data[column_name]) >= 100:
+                    self.data[column_name].pop(0)
+                
                 self.data[column_name].append(values)
+                '''
             else:
                 print("Invalid column name:", column_name)
         #print("current time: ", time.time())
         if (time.time() - self.last_read_time >= self.buffer_time):
-            self.data_changed.emit(self.data)
+            self.data_changed.emit(self.data_queue)
             self.last_read_time = time.time()
             print("data changed emitted")
 
@@ -69,6 +80,7 @@ class SerialHandler(QObject):
         #Should go for 6 iterations or two full updates / new lines into data
         count = 0
         while self.is_reading:
+            '''
             temp_data = {
             "Timestamp (s)": [],
             "X Acceleration (mG)": []}
@@ -79,9 +91,9 @@ class SerialHandler(QObject):
             time.sleep(.1)
             self.update_data(temp_data, self.last_read_time)
             '''
+            temp_data = {}
             line = self.serial.readline().decode().strip()
             #This is formatted that the while 
-            
             if (line == "" or "IMU READ:" in line or "WHEEL READ:" in line or "DATALOGREAD:" in line):
                 pass
             else:
@@ -91,12 +103,15 @@ class SerialHandler(QObject):
                     print("Error: Line does not contain expected key-value pair:", line)
                     continue  # Skip this line and proceed with the next one
 
-                #print("Key: " + key + ", value" + value)
-                temp_data[key.strip()] = float(value.strip())
+                print("Key: " + key + ", value" + value)
+                try:
+                    temp_data[key.strip()] = float(value.strip())
+                except:
+                    pass
                 #self.last_read_time = time.time()
                 self.update_data(temp_data, self.last_read_time)
                 #print("update_data called", " lastreadtime: ", self.last_read_time)
-                '''
+                
 
                 
         #print(self.data)

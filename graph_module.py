@@ -42,6 +42,8 @@ class GraphModule(QMainWindow):
         self.plot_widget = pg.PlotWidget()
         #self.plot_widget.setBackground(QColor('lightgray'))
         self.pen = pg.mkPen(color='red', width=1)
+        self.plot_widget.enableAutoRange(pg.ViewBox.XAxis, enable=False)
+        self.plot_widget.enableAutoRange(pg.ViewBox.YAxis, enable=False)
 
         self.serialhandler = serialhander
         self.serialhandler.data_changed.connect(self.update_graph)
@@ -91,13 +93,13 @@ class GraphModule(QMainWindow):
         collapsible_container.setContentLayout(sideBoxLayout)
         self.layout.addWidget(collapsible_container)
 
-        self.initialize_combo_boxes()
-
         self.checkbox = QCheckBox("Toggle Crosshair")
         self.checkbox.setChecked(False)
         self.sidebox.addWidget(self.checkbox)
         self.crosshair_enable = False
         self.checkbox.stateChanged.connect(self.toggle)
+
+        self.initialize_combo_boxes()
 
         self.graph_indice = 0
         
@@ -237,14 +239,18 @@ class GraphModule(QMainWindow):
             try:
                 x_values = np.asarray(new_data[x_column]).flatten() 
                 y_values = np.asarray(new_data[y_column]).flatten()
-                self.plot_widget.plot().setData(x=x_values, y=y_values, pen=self.pen)
+                self.plot_widget.clear()
+                self.initCrosshair()
+                self.plot_widget.plot(x=x_values, y=y_values, pen=self.pen)
                 self.plot_widget.setXRange(max(0, x_values[-1]-100), x_values[-1]+10)
+                self.plot_widget.setYRange(np.min(y_values)-10, np.max(y_values)+100)
             except Exception as e:
                 if "X and Y arrays must be the same shape" in str(e):
                     min_size = min(len(new_data[x_column]), len(new_data[y_column]))
-                    x_values = new_data[x_column][:min_size]
-                    y_values = new_data[y_column][:min_size]
-                    self.plot_widget.plot().setData(x=x_values, y=y_values)
+                    x_values = np.asarray(new_data[x_column][:min_size]).flatten()
+                    y_values = np.asarray(new_data[y_column][:min_size]).flatten()
+                    self.plot_widget.plot().setData(x=x_values, y=y_values, pen=self.pen)
+                    self.plot_widget.setXRange(max(0, x_values[-1]-100), x_values[-1]+10)
                 else:
                     print("error", e)
         else:

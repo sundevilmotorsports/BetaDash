@@ -92,7 +92,7 @@ class CustomDashboard(QMainWindow):
             for port in available_ports:
                 try:
                     print(f"Attempting to connect to {port.name}")
-                    self.serialmonitor = SerialHandler(port.name, 9600, 1, .5)
+                    self.serialmonitor = SerialHandler("COM6", 9600, 1, .05) # be careful with the last parameter anything with .09 or lower is unstable
                     reading_thread = threading.Thread(target=self.serial_read_loop)
                     reading_thread.daemon = True
                     reading_thread.start()
@@ -168,7 +168,7 @@ class CustomDashboard(QMainWindow):
         This subwindow is added to the Multiple Document Interface which is the meat and potatoes of our application.
         """
         sub_window = QMdiSubWindow()
-        self.graph_modules.append(GraphModule(self.serialmonitor))
+        threading.Thread(self.graph_modules.append(GraphModule(self.serialmonitor))).start()
         sub_window.setWidget(self.graph_modules[-1])
         sub_window.setGeometry(self.graph_modules[-1].geometry())
         self.mdi_area.addSubWindow(sub_window)
