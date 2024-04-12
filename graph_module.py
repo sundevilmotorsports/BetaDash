@@ -242,7 +242,7 @@ class GraphModule(QMainWindow):
                 self.plot_widget.clear()
                 self.initCrosshair()
                 self.plot_widget.plot(x=x_values, y=y_values, pen=self.pen)
-                self.plot_widget.setXRange(max(0, x_values[-1]-100), x_values[-1]+10)
+                self.plot_widget.setXRange(np.max(0, x_values[-1]-100), x_values[-1]+10)
                 self.plot_widget.setYRange(np.min(y_values)-10, np.max(y_values)+100)
             except Exception as e:
                 if "X and Y arrays must be the same shape" in str(e):
