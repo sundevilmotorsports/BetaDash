@@ -23,7 +23,6 @@ import serialhander as SerialHandler
 class GraphModule(QMainWindow):
     def __init__(self, serialhander : SerialHandler):
         super().__init__()
-        self.data_set = []
         self.setWindowTitle("Graph Module")
         self.setGeometry(100, 100, 1050, 600)
         self.menubar = self.menuBar()
@@ -38,12 +37,11 @@ class GraphModule(QMainWindow):
 
         self.layout = QHBoxLayout(self.central_widget)
         sideBoxLayout = QVBoxLayout()
-        graph_widget = QWidget()
         self.plot_widget = pg.PlotWidget()
         #self.plot_widget.setBackground(QColor('lightgray'))
         self.pen = pg.mkPen(color='red', width=1)
         self.plot_widget.enableAutoRange(pg.ViewBox.XAxis, enable=False)
-        self.plot_widget.enableAutoRange(pg.ViewBox.YAxis, enable=False)
+        #self.plot_widget.enableAutoRange(pg.ViewBox.YAxis, enable=False)
 
         self.serialhandler = serialhander
         self.serialhandler.data_changed.connect(self.update_graph)
@@ -102,6 +100,9 @@ class GraphModule(QMainWindow):
         self.initialize_combo_boxes()
 
         self.graph_indice = 0
+        self.x_axis_offset = 30
+        self.y_axis_offset = 0
+        self.end_offset = 0
         
     
     def initCrosshair(self):
@@ -239,13 +240,17 @@ class GraphModule(QMainWindow):
             try:
                 x_values = np.asarray(new_data[x_column]).flatten() 
                 y_values = np.asarray(new_data[y_column]).flatten()
-                self.plot_widget.clear()
+                #self.plot_widget.clear()
+                self.removeCrosshair()
                 self.initCrosshair()
-                self.plot_widget.plot(x=x_values, y=y_values, pen=self.pen)
-                self.plot_widget.setXRange(np.max(0, x_values[-1]-100), x_values[-1]+10)
-                self.plot_widget.setYRange(np.min(y_values)-10, np.max(y_values)+100)
+                self.plot_widget.plot().setData(x=x_values, y=y_values, pen=self.pen)
+                if x_values[-1] >= self.x_axis_offset+self.end_offset:
+                    self.end_offset = x_values[-1]
+                    self.plot_widget.setXRange(max(0, x_values[-1]-100), x_values[-1]+self.x_axis_offset)
+                    #self.plot_widget.setYRange(min(y_values)-10, max(y_values)+100)
             except Exception as e:
                 if "X and Y arrays must be the same shape" in str(e):
+                    print(str(e))
                     min_size = min(len(new_data[x_column]), len(new_data[y_column]))
                     x_values = np.asarray(new_data[x_column][:min_size]).flatten()
                     y_values = np.asarray(new_data[y_column][:min_size]).flatten()

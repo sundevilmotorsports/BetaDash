@@ -18,6 +18,7 @@ import os
 from PyQt5.QtGui import QIcon
 from graph_module import GraphModule
 from serialhander import SerialHandler
+from report_card import ReportModule
 import serial.tools.list_ports
 import threading
 import glob
@@ -103,7 +104,12 @@ class CustomDashboard(QMainWindow):
                     print(f"Error connecting to {port.name}: {e}")
 
             else:
-                print("No open serial ports found.")
+                print("No open serial ports found. Starting testing SerialHandler")
+                self.serialmonitor = SerialHandler("null", 9600, 1, .1)
+                reading_thread = threading.Thread(target=self.serial_read_loop)
+                reading_thread.daemon = True
+                reading_thread.start()
+
 
         except Exception as e:
             print(f"Error: {e}")
@@ -128,6 +134,10 @@ class CustomDashboard(QMainWindow):
         self.stop_reading_button.setMaximumWidth(200)
         self.stop_reading_button.clicked.connect(self.stop_serial_read)
 
+        self.report_module_button = QPushButton("Add Report Card")
+        self.report_module_button.setMaximumWidth(200)
+        self.report_module_button.clicked.connect(self.create_report_module)
+
         # Populate drop down window with available session objects
         for session in self.sessions:
             self.select_session_button.addItem(
@@ -137,6 +147,7 @@ class CustomDashboard(QMainWindow):
         self.toolbar.addWidget(self.graph_module_button)
         self.toolbar.addWidget(self.save_dashboard_button)
         self.toolbar.addWidget(self.stop_reading_button)
+        self.toolbar.addWidget(self.report_module_button)
 
         self.toolbar.addStretch(1)
         self.layout.addWidget(self.mdi_area)
@@ -171,6 +182,14 @@ class CustomDashboard(QMainWindow):
         threading.Thread(self.graph_modules.append(GraphModule(self.serialmonitor))).start()
         sub_window.setWidget(self.graph_modules[-1])
         sub_window.setGeometry(self.graph_modules[-1].geometry())
+        self.mdi_area.addSubWindow(sub_window)
+        sub_window.show()
+
+    def create_report_module(self):
+        sub_window = QMdiSubWindow()
+        report_card = ReportModule(self.serialmonitor)
+        sub_window.setWidget(report_card)
+        sub_window.setGeometry(report_card.geometry())
         self.mdi_area.addSubWindow(sub_window)
         sub_window.show()
 

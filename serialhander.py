@@ -4,6 +4,7 @@ import serial
 import time
 import random
 from collections import deque
+import polars as pl
 
 class SerialHandler(QObject):
     data_changed = pyqtSignal(dict)
@@ -11,7 +12,12 @@ class SerialHandler(QObject):
         super().__init__()
         self.serial_port = serial_port #if windows should be a COM and then a number, usually COM3 or COM4, if linux/mac use '/dev/ttyUSB0' or such
         self.baudrate = baudrate
-        self.serial = serial.Serial(self.serial_port, self.baudrate)
+        if not self.serial_port == "null":
+            self.serial = serial.Serial(self.serial_port, self.baudrate)
+            time.sleep(.2)
+            if not (self.serial.in_waiting > 0):
+                raise SerialException("Serial port transmits no data")
+                print("here")
         self.is_reading = True ## very important for killing thread when we want to
         self.sample_rate = samplerate ## Hz
         self.buffer_time = buffertime ## seconds
@@ -43,9 +49,11 @@ class SerialHandler(QObject):
             "Battery Voltage": [], 
             "DAQ Current Draw": []
         }
-
+        #self.data = pl.DataFrame({col: pl.Series([], pl.Int64) for col in self.columns})
+        
         for column_name in self.data.keys():
             self.data_queue[column_name] = deque(maxlen=100)
+    
 
 
     def set_sample_rate(self, rate):
@@ -79,38 +87,45 @@ class SerialHandler(QObject):
     def _read_data(self):
         #Should go for 6 iterations or two full updates / new lines into data
         count = 0
-        while self.is_reading:
-            '''
-            temp_data = {
-            "Timestamp (s)": [],
-            "X Acceleration (mG)": []}
-            temp_data["Timestamp (s)"].append(count)
-            count = count+1
-            temp_data["X Acceleration (mG)"].append(random.random())
-            print("temp_data updated")
-            time.sleep(.1)
-            self.update_data(temp_data, self.last_read_time)
-            '''
-            temp_data = {}
-            line = self.serial.readline().decode().strip()
-            #This is formatted that the while 
-            if (line == "" or "IMU READ:" in line or "WHEEL READ:" in line or "DATALOGREAD:" in line):
-                pass
-            else:
-                try:
-                    key, value = line.split(":")
-                except ValueError:
-                    print("Error: Line does not contain expected key-value pair:", line)
-                    continue  # Skip this line and proceed with the next one
-
-                print("Key: " + key + ", value" + value)
-                try:
-                    temp_data[key.strip()] = float(value.strip())
-                except:
-                    pass
-                #self.last_read_time = time.time()
+        if self.serial_port == "null":
+            print("Testing handler is reading")
+            count = 0
+            while self.is_reading:
+                temp_data = {
+                "Timestamp (s)": [],
+                "X Acceleration (mG)": []}
+                temp_data["Timestamp (s)"].append(count)
+                count = count+1
+                temp_data["X Acceleration (mG)"].append(random.random())
+                print("temp_data updated")
+                time.sleep(.1)
                 self.update_data(temp_data, self.last_read_time)
-                #print("update_data called", " lastreadtime: ", self.last_read_time)
+        else:
+            count = 0
+            print("Real handler is reading")
+            while self.is_reading:
+                temp_data = {}
+                line = self.serial.readline().decode().strip()
+                #This is formatted that the while 
+                if (line == "" or "IMU READ:" in line or "WHEEL READ:" in line or "DATALOGREAD:" in line):
+                    pass
+                else:
+                    try:
+                        key, value = line.split(":")
+                    except ValueError:
+                        print("Error: Line does not contain expected key-value pair:", line)
+                        continue  # Skip this line and proceed with the next one
+
+                    print("Key: " + key + ", value" + value)
+                    try:
+                        temp_data[key.strip()] = float(value.strip())
+                    except:
+                        pass
+                    #self.last_read_time = time.time()
+                    self.update_data(temp_data, self.last_read_time)
+                    #print("update_data called", " lastreadtime: ", self.last_read_time)
+            
+                
                 
 
                 
@@ -124,6 +139,7 @@ class SerialHandler(QObject):
     def stop_reading(self):
         print("Serial Reading is Stopping")
         self.is_reading = False
+        self.serial.close()
 
     def clear_input_buffer(self):
         while self.serial.in_waiting > 0:
