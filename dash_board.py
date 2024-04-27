@@ -19,6 +19,7 @@ from PyQt5.QtGui import QIcon
 from graph_module import GraphModule
 from serialhander import SerialHandler
 from report_card import ReportModule
+from WheelViz import WheelViz
 import serial.tools.list_ports
 import threading
 import glob
@@ -72,7 +73,7 @@ class CustomDashboard(QMainWindow):
         # ------------------------------
 
         self.setWindowTitle("Sun Devil Motorsports Beta Data Dashboard")
-        self.setWindowIcon(QIcon("90129757.jpg"))
+        self.setWindowIcon(QIcon("resources/90129757.jpg"))
         self.setGeometry(100, 100, 1800, 900)
         self.mdi_area = QMdiArea()
         self.setCentralWidget(self.mdi_area)
@@ -102,14 +103,12 @@ class CustomDashboard(QMainWindow):
                     break  # Break out of the loop if connection is successful
                 except Exception as e:
                     print(f"Error connecting to {port.name}: {e}")
-
             else:
                 print("No open serial ports found. Starting testing SerialHandler")
                 self.serialmonitor = SerialHandler("null", 9600, 1, .1)
                 reading_thread = threading.Thread(target=self.serial_read_loop)
                 reading_thread.daemon = True
                 reading_thread.start()
-
 
         except Exception as e:
             print(f"Error: {e}")
@@ -138,6 +137,10 @@ class CustomDashboard(QMainWindow):
         self.report_module_button.setMaximumWidth(200)
         self.report_module_button.clicked.connect(self.create_report_module)
 
+        self.wheelviz_button = QPushButton("Add WheelViz")
+        self.wheelviz_button.setMaximumWidth(200)
+        self.wheelviz_button.clicked.connect(self.add_wheelviz)
+
         # Populate drop down window with available session objects
         for session in self.sessions:
             self.select_session_button.addItem(
@@ -148,6 +151,7 @@ class CustomDashboard(QMainWindow):
         self.toolbar.addWidget(self.save_dashboard_button)
         self.toolbar.addWidget(self.stop_reading_button)
         self.toolbar.addWidget(self.report_module_button)
+        self.toolbar.addWidget(self.wheelviz_button)
 
         self.toolbar.addStretch(1)
         self.layout.addWidget(self.mdi_area)
@@ -190,6 +194,14 @@ class CustomDashboard(QMainWindow):
         report_card = ReportModule(self.serialmonitor)
         sub_window.setWidget(report_card)
         sub_window.setGeometry(report_card.geometry())
+        self.mdi_area.addSubWindow(sub_window)
+        sub_window.show()
+
+    def add_wheelviz(self):
+        sub_window = QMdiSubWindow()
+        wheel_viz = WheelViz(self.serialmonitor)
+        sub_window.setWidget(wheel_viz)
+        sub_window.setGeometry(wheel_viz.geometry())
         self.mdi_area.addSubWindow(sub_window)
         sub_window.show()
 

@@ -40,40 +40,72 @@ class ReportModule(QMainWindow):
 
         self.peak_accel = QLabel("Peak Accel (mG): ")
         self.container.addWidget(self.peak_accel)
+        self.max_accel = 0
         
         self.peak_braking = QLabel("Peak Braking (mG): ")
         self.container.addWidget(self.peak_braking)
+        self.max_brake = 0
         
         self.peak_cornering = QLabel("Peak Cornering (mG): ")
         self.container.addWidget(self.peak_cornering)
+        self.max_corner = 0
         
         self.max_fl_wheel_rpm = QLabel("Max FL Wheel RPM: ")
         self.container.addWidget(self.max_fl_wheel_rpm)
+        self.max_fl_rpm = 0
         
         self.max_fl_rotor_temp = QLabel("Max FL Rotor Temperature (C): ")
         self.container.addWidget(self.max_fl_rotor_temp)
+        self.max_fl_temp = 0
         
         self.max_fr_wheel_rpm = QLabel("Max FR Wheel RPM: ")
         self.container.addWidget(self.max_fr_wheel_rpm)
+        self.max_fr_rpm = 0
         
         self.max_fr_rotor_temp = QLabel("Max FR Rotor Temperature (C): ")
         self.container.addWidget(self.max_fr_rotor_temp)
+        self.max_fr_temp = 0
         
         self.fr_shock_travel = QLabel("FR Shock Travel Range (mm): ")
         self.container.addWidget(self.fr_shock_travel)
+        self.fr_travel = 0
         
         self.fl_shock_travel = QLabel("FL Shock Travel Range (mm): ")
         self.container.addWidget(self.fl_shock_travel)
+        self.fl_travel = 0
         
         self.rl_shock_travel = QLabel("RL Shock Travel Range (mm): ")
         self.container.addWidget(self.rl_shock_travel)
+        self.rl_travel = 0
         
         self.rr_shock_travel = QLabel("RR Shock Travel Range (mm): ")
         self.container.addWidget(self.rr_shock_travel)
+        self.rr_travel = 0
 
         self.layout.addLayout(self.container)
 
     @pyqtSlot(dict)
     def update_card(self, new_data):
         #print(new_data)
-        self.len_run.setText("Length of Run (s): " + str(new_data["Timestamp (s)"][-1])[1:-1])
+        self.len_run.setText("Length of Run (s): " + str(new_data["Timestamp (s)"][-1]))
+
+        self.max_accel = max(self.max_accel, new_data["X Acceleration (mG)"][-1])
+        self.peak_accel.setText("Peak Accel (mG): " + str(self.max_accel)[0:7])
+
+        self.max_brake = max(self.max_brake, new_data["Y Acceleration (mG)"][-1])
+        self.peak_braking.setText("Peak Braking (mG): " + str(self.max_brake)[0:7])
+        
+        self.max_corner = max(self.max_corner, new_data["Z Acceleration (mG)"][-1])
+        self.peak_cornering.setText("Peak Cornering (mG): " + str(self.max_corner)[0:7])
+
+        self.max_fl_rpm = max(self.max_fl_rpm, new_data["Front Left Speed (mph)"][-1])
+        self.max_fl_wheel_rpm.setText("Max FL Wheel RPM: " + str(self.max_fl_wheel_rpm)[0:7])
+
+        self.max_fl_temp = max(self.max_fl_temp, new_data["Front Left Brake Temp (C)"][-1])
+        self.max_fl_rotor_temp.setText("Max FL Rotor Temperature (C): " + str(self.max_fl_rotor_temp)[0:7])
+
+        self.max_fr_rpm = max(self.max_fr_rpm, new_data["Front Left Speed (mph)"][-1])
+        self.max_fr_wheel_rpm.setText("Max FL Wheel RPM: " + str(self.max_fl_wheel_rpm)[0:7])
+
+        self.max_fr_temp = max(self.max_fr_temp, new_data["Front Left Brake Temp (C)"][-1])
+        self.max_fr_rotor_temp.setText("Max FL Rotor Temperature (C): " + str(self.max_fl_rotor_temp)[0:7])

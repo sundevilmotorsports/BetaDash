@@ -36,6 +36,7 @@ class GraphModule(QMainWindow):
         self.setCentralWidget(self.central_widget)
 
         self.layout = QHBoxLayout(self.central_widget)
+        self.layout.setContentsMargins(0, 0, 0, 0)
         sideBoxLayout = QVBoxLayout()
         self.plot_widget = pg.PlotWidget()
         #self.plot_widget.setBackground(QColor('lightgray'))
@@ -103,8 +104,13 @@ class GraphModule(QMainWindow):
         self.x_axis_offset = 30
         self.y_axis_offset = 0
         self.end_offset = 0
+
+        self.last_mouse_position = [0, 0]
+        self.plot_widget.scene().sigMouseClicked.connect(self.mouseClicked)
+        self.escalation_status = 0
+        self.events = []
+        self.event_markers = []
         
-    
     def initCrosshair(self):
         if self.crosshair_enable:
             self.crosshair_v = pg.InfiniteLine(angle=90, movable=False)
@@ -112,12 +118,13 @@ class GraphModule(QMainWindow):
             self.plot_widget.addItem(self.crosshair_v, ignoreBounds=True)
             self.plot_widget.addItem(self.crosshair_h, ignoreBounds=True)
 
-            self.x_label = pg.TextItem("", anchor=(0, 1))
-            self.y_label = pg.TextItem("", anchor=(0, 1))
-            self.plot_widget.addItem(self.x_label, ignoreBounds=True)
-            self.plot_widget.addItem(self.y_label, ignoreBounds=True)
+            self.x_label = pg.TextItem("")
+            self.y_label = pg.TextItem("")
+            self.plot_widget.addItem(self.x_label)
+            self.plot_widget.addItem(self.y_label)
 
-            self.proxy = pg.SignalProxy(self.plot_widget.scene().sigMouseMoved, rateLimit=60, slot=self.mouseMoved)
+            #self.proxy = pg.SignalProxy(self.plot_widget.scene().sigMouseMoved, rateLimit=60, slot=self.mouseMoved)
+            self.plot_widget.scene().sigMouseMoved.connect(self.mouseMoved)
 
     def removeCrosshair(self):
         try:
@@ -129,12 +136,10 @@ class GraphModule(QMainWindow):
             print(str(e))
 
     def mouseMoved(self, e):
-        pos = e[0]
-        if self.plot_widget.sceneBoundingRect().contains(pos) and self.crosshair_enable:
-            mousePoint = self.plot_widget.getPlotItem().vb.mapSceneToView(pos)
-            self.crosshair_v.setPos(mousePoint.x())
-            self.crosshair_h.setPos(mousePoint.y())
-
+        pos = e
+        #pos = e[0]
+        if self.plot_widget.sceneBoundingRect().contains(pos):
+            mousePoint = self.plot_widget.plotItem.vb.mapSceneToView(pos)
             x_pos = mousePoint.x()
             y_pos = mousePoint.y()
             x_text = f"X: {x_pos:.2f}"  # Limiting digits to 2 decimal places
@@ -144,31 +149,11 @@ class GraphModule(QMainWindow):
             label_color = pg.mkColor('g')
             self.x_label.setColor(label_color)
             self.y_label.setColor(label_color)
-
-            x_pos = x_pos + self.x_label.boundingRect().width() + 5
-            y_pos = y_pos - self.x_label.boundingRect().height()
-
-            text_height = self.x_label.boundingRect().height()
-            if mousePoint.x() + self.x_label.boundingRect().width() > self.plot_widget.plotItem.width():
-                x_pos = mousePoint.x() - 5 - self.x_label.boundingRect().width()
-            elif mousePoint.x() + self.y_label.boundingRect().width() > self.plot_widget.plotItem.width():
-                x_pos = mousePoint.x() - 5 - self.x_label.boundingRect().width()
-            if mousePoint.y() - self.x_label.boundingRect().height() - 2 * text_height - 5 < 0:
-                y_pos += text_height * 2 + 5
-
-            x_marker_point = self.plot_widget.plotItem.vb.mapSceneToView(
-                QtCore.QPointF(x_pos, y_pos - self.x_label.boundingRect().height()))
-            self.x_label.setPos(x_marker_point.x(), x_marker_point.y())
-
-            # Move Y marker to position
-            y_marker_point = self.plot_widget.plotItem.vb.mapSceneToView(QtCore.QPointF(x_pos, y_pos))
-            self.y_label.setPos(y_marker_point.x(), y_marker_point.y())
-            '''
-            self.x_label.setPos(mousePoint.x() + label_offset, 
-                                self.plot_widget.plotItem.vb.viewRect().bottom() - x_label_height_offset)
-            self.y_label.setPos(self.plot_widget.plotItem.vb.viewRect().left(), 
-                                mousePoint.y() + label_offset)
-            '''
+            self.x_label.setPos(x_pos, y_pos)
+            self.y_label.setPos(x_pos, y_pos)
+            self.crosshair_v.setPos(mousePoint.x())
+            self.crosshair_h.setPos(mousePoint.y())
+            self.last_mouse_position = [x_pos, y_pos]
 
     def toggle(self, state):
         if state == 0:
@@ -179,6 +164,25 @@ class GraphModule(QMainWindow):
             self.crosshair_enable = True
             self.initCrosshair()
             print("Checkbox is checked")
+
+
+    def mouseClicked(self, e):
+        pos = e.pos()
+        #pos = e[0]
+        if self.plot_widget.sceneBoundingRect().contains(pos):
+            mousePoint = self.plot_widget.plotItem.vb.mapSceneToView(pos)
+            x_pos = mousePoint.x()
+            #y_pos = mousePoint.y()
+
+        self.escalation_status = self.escalation_status + 1
+        if self.escalation_status == 2:
+            self.events.append(int(x_pos))
+            event_marker = pg.InfiniteLine(pos=x_pos, angle=90, movable=False)
+            #event_marker.setPos(x_pos)
+            self.plot_widget.addItem(event_marker, ignoreBounds=True)
+            self.escalation_status = 0
+            self.event_markers.append([event_marker, x_pos])
+
 
     def reset(self):
         self.pause_graph()
@@ -241,13 +245,24 @@ class GraphModule(QMainWindow):
                 x_values = np.asarray(new_data[x_column]).flatten() 
                 y_values = np.asarray(new_data[y_column]).flatten()
                 #self.plot_widget.clear()
-                self.removeCrosshair()
-                self.initCrosshair()
-                self.plot_widget.plot().setData(x=x_values, y=y_values, pen=self.pen)
                 if x_values[-1] >= self.x_axis_offset+self.end_offset:
                     self.end_offset = x_values[-1]
+                    self.plot_widget.clear()
+                    if self.crosshair_enable:
+                        self.removeCrosshair()
+                        self.initCrosshair()
+                    self.plot_widget.plot(x=x_values, y=y_values, pen=self.pen)
                     self.plot_widget.setXRange(max(0, x_values[-1]-100), x_values[-1]+self.x_axis_offset)
+                    if self.crosshair_enable:
+                        self.crosshair_h.setPos(self.last_mouse_position[1])
+                        self.crosshair_v.setPos(self.last_mouse_position[0])
+                        for event_marker in self.event_markers:
+                            self.plot_widget.addItem(event_marker[0])
+                            event_marker[0].setPos(event_marker[1])
                     #self.plot_widget.setYRange(min(y_values)-10, max(y_values)+100)
+                else:
+                    self.plot_widget.plot().setData(x=x_values, y=y_values, pen=self.pen)
+
             except Exception as e:
                 if "X and Y arrays must be the same shape" in str(e):
                     print(str(e))

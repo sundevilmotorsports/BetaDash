@@ -54,8 +54,6 @@ class SerialHandler(QObject):
         for column_name in self.data.keys():
             self.data_queue[column_name] = deque(maxlen=100)
     
-
-
     def set_sample_rate(self, rate):
         self.sample_rate = rate
 
@@ -69,7 +67,8 @@ class SerialHandler(QObject):
         #Serves two purposes, add temp_data to data repository (self.data) and emit the newly acquired data which will call update_graph in graph_module
         for column_name, values in temp_data.items():
             if column_name in self.data:
-                self.data_queue[column_name].append(values)
+                print(values)
+                self.data_queue[column_name].append(values[0])
                 '''
                 if len(self.data[column_name]) >= 100:
                     self.data[column_name].pop(0)
@@ -93,10 +92,48 @@ class SerialHandler(QObject):
             while self.is_reading:
                 temp_data = {
                 "Timestamp (s)": [],
-                "X Acceleration (mG)": []}
+                "X Acceleration (mG)": [],
+                "Y Acceleration (mG)": [],
+                "Z Acceleration (mG)": [],
+                "X Gyro (mdps)": [],
+                "Y Gyro (mdps)": [],
+                "Z Gyro (mdps)": [],
+                "Front Left Speed (mph)": [],
+                "Front Left Brake Temp (C)": [],
+                "Front Left Ambient Temperature (C)": [],
+                "Front Right Speed (mph)": [],
+                "Front Right Brake Temp (C)": [],
+                "Front Right Ambient Temperature (C)": [],
+                "Back Left Speed (mph)": [],
+                "Back Left Brake Temp (C)": [],
+                "Back Left Ambient Temperature (C)": [],
+                "Back Right Speed (mph)": [],
+                "Back Right Brake Temp (C)": [],
+                "Back Right Ambient Temperature (C)": [],
+                "Steering Angle": [],
+                "Throttle Input": []}
                 temp_data["Timestamp (s)"].append(count)
                 count = count+1
                 temp_data["X Acceleration (mG)"].append(random.random())
+                temp_data["Y Acceleration (mG)"].append(random.random()) 
+                temp_data["Z Acceleration (mG)"].append(random.random())    
+                temp_data["X Gyro (mdps)"].append(random.random())
+                temp_data["Y Gyro (mdps)"].append(random.random())  
+                temp_data["Z Gyro (mdps)"].append(random.random())  
+                temp_data["Front Left Speed (mph)"].append(random.random()) 
+                temp_data["Front Left Brake Temp (C)"].append(random.random())  
+                temp_data["Front Left Ambient Temperature (C)"].append(random.random())
+                temp_data["Front Right Speed (mph)"].append(random.random())
+                temp_data["Front Right Brake Temp (C)"].append(random.random())
+                temp_data["Front Right Ambient Temperature (C)"].append(random.random()) 
+                temp_data["Back Left Speed (mph)"].append(random.random())
+                temp_data["Back Left Brake Temp (C)"].append(random.random()) 
+                temp_data["Back Left Ambient Temperature (C)"].append(random.random()) 
+                temp_data["Back Right Speed (mph)"].append(random.random()) 
+                temp_data["Back Right Brake Temp (C)"].append(random.random())
+                temp_data["Back Right Ambient Temperature (C)"].append(random.random()) 
+                temp_data["Steering Angle"].append(random.random()) 
+                temp_data["Throttle Input"].append(random.random())  
                 print("temp_data updated")
                 time.sleep(.1)
                 self.update_data(temp_data, self.last_read_time)
@@ -124,13 +161,6 @@ class SerialHandler(QObject):
                     #self.last_read_time = time.time()
                     self.update_data(temp_data, self.last_read_time)
                     #print("update_data called", " lastreadtime: ", self.last_read_time)
-            
-                
-                
-
-                
-        #print(self.data)
-
 
     def emit_data_changed(self):
         print("Emitting data has changed to all instances of graph_module.py with latest data:", self.data)
