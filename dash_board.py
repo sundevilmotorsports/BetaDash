@@ -13,6 +13,7 @@ from PyQt5.QtWidgets import (
     QMdiSubWindow,
     QSlider,
     QLabel,
+    QTextEdit,
 )
 import os
 from PyQt5.QtGui import QIcon
@@ -25,7 +26,9 @@ import threading
 import glob
 import pickle
 from datetime import datetime
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import (
+    Qt,
+)
 import time
 
 
@@ -86,6 +89,7 @@ class CustomDashboard(QMainWindow):
         self.footer = QStatusBar()
         self.layout.addLayout(self.toolbar)
 
+        #added self. before all reading_thread
         try:
             # Get a list of available serial ports
             available_ports = serial.tools.list_ports.comports()
@@ -95,9 +99,9 @@ class CustomDashboard(QMainWindow):
                 try:
                     print(f"Attempting to connect to {port.name}")
                     self.serialmonitor = SerialHandler(port.name, 9600, 1, .1) # be careful with the last parameter anything with .09 or lower is unstable
-                    reading_thread = threading.Thread(target=self.serial_read_loop)
-                    reading_thread.daemon = True
-                    reading_thread.start()
+                    self.reading_thread = threading.Thread(target=self.serial_read_loop)
+                    self.reading_thread.daemon = True
+                    self.reading_thread.start()
                     #self.serialmonitor.data_changed.connect(self.update_all_graphs)
                     print(f"Connected to {port.name}")
                     break  # Break out of the loop if connection is successful
@@ -106,9 +110,9 @@ class CustomDashboard(QMainWindow):
             else:
                 print("No open serial ports found. Starting testing SerialHandler")
                 self.serialmonitor = SerialHandler("null", 9600, 1, .1)
-                reading_thread = threading.Thread(target=self.serial_read_loop)
-                reading_thread.daemon = True
-                reading_thread.start()
+                self.reading_thread = threading.Thread(target=self.serial_read_loop)
+                self.reading_thread.daemon = True
+                self.reading_thread.start()
 
         except Exception as e:
             print(f"Error: {e}")
@@ -141,6 +145,12 @@ class CustomDashboard(QMainWindow):
         self.wheelviz_button.setMaximumWidth(200)
         self.wheelviz_button.clicked.connect(self.add_wheelviz)
 
+        #adams
+        self.test_data_button = QPushButton("Test Data Receive")
+        self.test_data_button.setMaximumWidth(200)
+        self.test_data_button.clicked.connect(self.create_test_data_window)
+        #adams
+
         # Populate drop down window with available session objects
         for session in self.sessions:
             self.select_session_button.addItem(
@@ -153,15 +163,20 @@ class CustomDashboard(QMainWindow):
         self.toolbar.addWidget(self.report_module_button)
         self.toolbar.addWidget(self.wheelviz_button)
 
+        #adams
+        self.toolbar.addWidget(self.test_data_button)
+        #adams
+
         self.toolbar.addStretch(1)
         self.layout.addWidget(self.mdi_area)
 
         self.central_widget = QWidget()
         self.central_widget.setLayout(self.layout)
         self.setCentralWidget(self.central_widget)
-      
+
+    #added serial.tools. to list_ports  
     def find_available_serial_port(self):
-        available_ports = list_ports.comports()
+        available_ports = serial.tools.list_ports.comports()
         for port in available_ports:
             if port.device.startswith("COM"):  #This using Windows convention, need to use /dev/tty if linux or mac
                 return port.device
@@ -170,9 +185,16 @@ class CustomDashboard(QMainWindow):
     def serial_read_loop(self):
         self.serialmonitor._read_data()
 
+    #def stop_serial_read(self):
+    #    self.serialmonitor.stop_reading()
+    #    reading_thread.stop()
+    
+    #fixed? stop serial button
     def stop_serial_read(self):
         self.serialmonitor.stop_reading()
-        reading_thread.stop()
+        if self.reading_thread.is_alive():  # Check if the thread is running
+            self.reading_thread.join()  # Properly join the thread instead of stopping it abruptly
+
 
     def update_all_graphs(self, new_data):
         for graphmodule in self.graph_modules:
@@ -204,6 +226,30 @@ class CustomDashboard(QMainWindow):
         sub_window.setGeometry(wheel_viz.geometry())
         self.mdi_area.addSubWindow(sub_window)
         sub_window.show()
+
+    #adams
+    def create_test_data_window(self):
+        # Create a new sub-window for Test Data Receive
+        sub_window = QMdiSubWindow()
+        
+        # Create a text edit widget to display the data
+        self.data_display = QTextEdit()
+        self.data_display.setReadOnly(True)  # Make it read-only since it's for displaying data
+        
+        sub_window.setWidget(self.data_display)
+        sub_window.setGeometry(200, 200, 400, 200)  # Set size and position
+        self.mdi_area.addSubWindow(sub_window)
+        sub_window.show()
+        
+        # Start the serial read loop in a separate thread to update the text area
+        self.serialmonitor.data_changed.connect(self.update_test_data_display)
+
+    def update_test_data_display(self, new_data):
+        # Append the new data to the text edit widget
+        self.data_display.append(new_data)
+
+    #adams
+
 
     def save_dashboard(self):
         """Upon a connection with a button, this will save the current state of the dashboard and dump it into a new pickle file which will be stored in the sessions folder."""

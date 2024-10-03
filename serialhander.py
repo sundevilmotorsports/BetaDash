@@ -5,6 +5,8 @@ import time
 import random
 from collections import deque
 import polars as pl
+#added import SerialException
+from serial import SerialException
 
 class SerialHandler(QObject):
     data_changed = pyqtSignal(dict)
@@ -14,7 +16,7 @@ class SerialHandler(QObject):
         self.baudrate = baudrate
         if not self.serial_port == "null":
             self.serial = serial.Serial(self.serial_port, self.baudrate)
-            time.sleep(.2)
+            time.sleep(2)
             if not (self.serial.in_waiting > 0):
                 raise SerialException("Serial port transmits no data")
                 print("here")
