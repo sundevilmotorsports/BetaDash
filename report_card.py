@@ -86,10 +86,11 @@ class ReportModule(QMainWindow):
 
     @pyqtSlot(dict)
     def update_card(self, new_data):
-        #print(new_data)
+        #print("card new data", new_data)
         self.len_run.setText("Length of Run (s): " + str(new_data["Timestamp (s)"][-1]))
-
+        #print("max accel", self.max_accel)
         self.max_accel = max(self.max_accel, new_data["X Acceleration (mG)"][-1])
+        #print("new data [-1]", new_data["X Acceleration (mG)"][-1])
         self.peak_accel.setText("Peak Accel (mG): " + str(self.max_accel)[0:7])
 
         self.max_brake = max(self.max_brake, new_data["Y Acceleration (mG)"][-1])
@@ -99,13 +100,26 @@ class ReportModule(QMainWindow):
         self.peak_cornering.setText("Peak Cornering (mG): " + str(self.max_corner)[0:7])
 
         self.max_fl_rpm = max(self.max_fl_rpm, new_data["Front Left Speed (mph)"][-1])
-        self.max_fl_wheel_rpm.setText("Max FL Wheel RPM: " + str(self.max_fl_wheel_rpm)[0:7])
-
+        self.max_fl_wheel_rpm.setText("Max FL Wheel RPM: " + str(self.max_fl_rpm)[0:7])
+        #print("max fl temp", self.max_fl_temp)
+        #print("fl brake temp", list(new_data["Front Left Brake Temp (C)"])[-1], " ", len(new_data["Front Left Brake Temp (C)"]))
         self.max_fl_temp = max(self.max_fl_temp, new_data["Front Left Brake Temp (C)"][-1])
-        self.max_fl_rotor_temp.setText("Max FL Rotor Temperature (C): " + str(self.max_fl_rotor_temp)[0:7])
+        self.max_fl_rotor_temp.setText("Max FL Rotor Temperature (C): " + str(self.max_fl_temp)[0:7])
 
-        self.max_fr_rpm = max(self.max_fr_rpm, new_data["Front Left Speed (mph)"][-1])
-        self.max_fr_wheel_rpm.setText("Max FL Wheel RPM: " + str(self.max_fl_wheel_rpm)[0:7])
+        self.max_fr_rpm = max(self.max_fr_rpm, new_data["Front Right Speed (mph)"][-1])
+        self.max_fr_wheel_rpm.setText("Max FR Wheel RPM: " + str(self.max_fr_rpm)[0:7])
 
-        self.max_fr_temp = max(self.max_fr_temp, new_data["Front Left Brake Temp (C)"][-1])
-        self.max_fr_rotor_temp.setText("Max FL Rotor Temperature (C): " + str(self.max_fl_rotor_temp)[0:7])
+        self.max_fr_temp = max(self.max_fr_temp, new_data["Front Right Brake Temp (C)"][-1])
+        self.max_fr_rotor_temp.setText("Max FR Rotor Temperature (C): " + str(self.max_fr_temp)[0:7])
+
+        self.fl_travel = max(self.fl_travel, new_data["Front Left Shock Pot (mm)"][-1])
+        self.fl_shock_travel.setText("Max FL Shock Pot (mm): " + str(self.fl_travel)[0:7])
+
+        self.fr_travel = max(self.fr_travel, new_data["Front Right Shock Pot (mm)"][-1])
+        self.fr_shock_travel.setText("Max FR Shock Pot (mm): " + str(self.fr_travel)[0:7])
+
+        self.rl_travel = max(self.rl_travel, new_data["Rear Left Shock Pot (mm)"][-1])
+        self.rl_shock_travel.setText("Max RL Shock Pot (mm): " + str(self.rl_travel)[0:7])
+
+        self.rr_travel = max(self.rr_travel, new_data["Rear Right Shock Pot (mm)"][-1])
+        self.rr_shock_travel.setText("Max RR Shock Pot (mm): " + str(self.rr_travel)[0:7])

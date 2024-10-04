@@ -38,13 +38,12 @@ class WheelViz(QMainWindow):
 
         self.layout = QHBoxLayout(self.central_widget)
         self.left_layout = QVBoxLayout()
-        self.right_layout = QVBoxLayout()
+        self.right_layout = QVBoxLayout()  
         #adams
         self.left2_layout = QVBoxLayout()
         self.right2_layout = QVBoxLayout()
 
         self.serialhander = serialhandler
-        self.serialhander.data_changed.connect(self.update_bars)
 
         self.label = QLabel("Car Visualization")
         self.label.setAlignment(Qt.AlignCenter)
@@ -57,28 +56,33 @@ class WheelViz(QMainWindow):
 
         self.layout.addLayout(self.left2_layout)
         self.layout.addLayout(self.left_layout)
+        self.layout.addLayout(self.left2_layout)
         self.layout.addWidget(self.image_label)
         self.layout.addLayout(self.right_layout)
         self.layout.addLayout(self.right2_layout)
 
         self.plot_widget_left_front = pg.PlotWidget()
         self.plot_widget_left_front.setMaximumWidth(100)
-        self.plot_widget_left_front.getAxis("bottom").setStyle(showValues=False)
+        self.plot_widget_left_front.getAxis("bottom").hide()
+        self.plot_widget_left_front.getAxis('left').hide()
         self.plot_widget_left_front.setYRange(0,1)
-
+       
         self.plot_widget_left_rear = pg.PlotWidget()
         self.plot_widget_left_rear.setMaximumWidth(100)
-        self.plot_widget_left_rear.getAxis("bottom").setStyle(showValues=False)
+        self.plot_widget_left_rear.getAxis("bottom").hide()
+        self.plot_widget_left_rear.getAxis("left").hide()
         self.plot_widget_left_rear.setYRange(0,1)
 
         self.plot_widget_right_front = pg.PlotWidget()
         self.plot_widget_right_front.setMaximumWidth(100)
-        self.plot_widget_right_front.getAxis("bottom").setStyle(showValues=False)
+        self.plot_widget_right_front.getAxis("bottom").hide()
+        self.plot_widget_right_front.getAxis("left").hide()
         self.plot_widget_right_front.setYRange(0,1)
 
         self.plot_widget_right_rear = pg.PlotWidget()
         self.plot_widget_right_rear.setMaximumWidth(100)
-        self.plot_widget_right_rear.getAxis("bottom").setStyle(showValues=False)
+        self.plot_widget_right_rear.getAxis("bottom").hide()
+        self.plot_widget_right_rear.getAxis("left").hide()
         self.plot_widget_right_rear.setYRange(0,1)
 
         #adams
@@ -102,18 +106,16 @@ class WheelViz(QMainWindow):
         self.plot_widget_right_rear_temp.getAxis("bottom").setStyle(showValues=False)
         self.plot_widget_right_rear_temp.setYRange(0,1)
 
-        #self.layout.addLayout(self.left_layout)
-        self.left_layout.addWidget(self.plot_widget_left_front)
-        self.left_layout.addWidget(self.plot_widget_left_rear)
-        self.right_layout.addWidget(self.plot_widget_right_front)
-        self.right_layout.addWidget(self.plot_widget_right_rear)
-
-        #self.layout.addLayout(self.left2_layout)
         self.left2_layout.addWidget(self.plot_widget_left_front_temp)
         self.left2_layout.addWidget(self.plot_widget_left_rear_temp)
         self.right2_layout.addWidget(self.plot_widget_right_front_temp)
         self.right2_layout.addWidget(self.plot_widget_right_rear_temp)
 
+        self.left_layout.addWidget(self.plot_widget_left_front)
+        self.left_layout.addWidget(self.plot_widget_left_rear)
+        self.right_layout.addWidget(self.plot_widget_right_front)
+        self.right_layout.addWidget(self.plot_widget_right_rear)
+        
         lf_data = [1]
         lr_data = [1]
         rf_data = [1]  
@@ -129,6 +131,10 @@ class WheelViz(QMainWindow):
         self.rf_bar = pg.BarGraphItem(x=[0], height=rf_data, width=0.6, brush='w')
         self.rr_bar = pg.BarGraphItem(x=[0], height=rr_data, width=0.6, brush='w')
 
+        lf_temp_data = [1]
+        lr_temp_data = [1]
+        rf_temp_data = [1]  
+        rr_temp_data = [1] 
         self.lf_temp_bar = pg.BarGraphItem(x=[0], height=lf_data, width=0.6, brush='w')
         self.lr_temp_bar = pg.BarGraphItem(x=[0], height=lr_data, width=0.6, brush='w')
         self.rf_temp_bar = pg.BarGraphItem(x=[0], height=rf_data, width=0.6, brush='w')
@@ -144,10 +150,39 @@ class WheelViz(QMainWindow):
         self.plot_widget_right_front_temp.addItem(self.rf_temp_bar)
         self.plot_widget_right_rear_temp.addItem(self.rr_temp_bar)
 
+        font = QFont()
+        font.setPointSize(16)
+        font.setBold(True)
+
+        self.left_upper_label = pg.TextItem("label", anchor=(.8, 0.5), color='w')
+        self.plot_widget_left_front.addItem(self.left_upper_label)
+        self.left_upper_label.setPos(0.2, 0.5)
+        self.left_upper_label.setFont(font)
+
+        self.left_lower_label = pg.TextItem("label", anchor=(.8, 0.5), color='w')
+        self.plot_widget_left_rear.addItem(self.left_lower_label)
+        self.left_lower_label.setPos(0.2, 0.5)
+        self.left_lower_label.setFont(font)
+
+        self.right_upper_label = pg.TextItem("label", anchor=(.8, 0.5), color='w')
+        self.plot_widget_right_front.addItem(self.right_upper_label)
+        self.right_upper_label.setPos(0.2, 0.5)
+        self.right_upper_label.setFont(font)
+
+        self.right_lower_label = pg.TextItem("label", anchor=(.8, 0.5), color='w')
+        self.plot_widget_right_rear.addItem(self.right_lower_label)
+        self.right_lower_label.setPos(0.2, 0.5)
+        self.right_lower_label.setFont(font)
+
         self.last_lf_data = 0
         self.last_lr_data = 0
         self.last_rf_data = 0
         self.last_rr_data = 0
+        self.last_lf_temp_data = 0
+        self.last_lr_temp_data = 0
+        self.last_rf_temp_data = 0
+        self.last_rr_temp_data = 0
+        self.serialhander.data_changed.connect(self.update_bars)
 
         self.last_lf_temp_data = 0
         self.last_lr_temp_data = 0
@@ -167,6 +202,7 @@ class WheelViz(QMainWindow):
     @pyqtSlot(dict)
     def update_bars(self, new_data):
         lf_data = new_data["Front Left Speed (mph)"][-1]
+        #print("lf_data: ", lf_data[0])
         lr_data = new_data["Back Left Speed (mph)"][-1]
         rf_data = new_data["Front Right Speed (mph)"][-1]
         rr_data = new_data["Back Right Speed (mph)"][-1]
@@ -213,7 +249,31 @@ class WheelViz(QMainWindow):
         self.last_rf_data = rf_data
         self.last_rr_data = rr_data
 
+        self.left_upper_label.setText(str(f"{lf_data:.2f}"))
+        self.left_lower_label.setText(str(f"{lr_data:.2f}"))
+        self.right_upper_label.setText(str(f"{rf_data:.2f}"))
+        self.right_lower_label.setText(str(f"{rr_data:.2f}"))
+
+        lf_temp_color = self.get_color_from_normalized_value(lf_temp_data)
+        self.lf_temp_bar.setOpts(height=lf_temp_data, brush=QBrush(lf_temp_color))
+        lr_temp_color = self.get_color_from_normalized_value(lr_temp_data)
+        self.lr_temp_bar.setOpts(height=lr_temp_data, brush=QBrush(lr_temp_color))
+        rf_temp_color = self.get_color_from_normalized_value(rf_temp_data)
+        self.rf_temp_bar.setOpts(height=rf_temp_data, brush=QBrush(rf_temp_color))
+        rr_temp_color = self.get_color_from_normalized_value(rr_temp_data)
+        self.rr_temp_bar.setOpts(height=rr_temp_data, brush=QBrush(rr_temp_color))
+
         self.last_lf_temp_data = lf_temp_data
         self.last_lr_temp_data = lr_temp_data
         self.last_rf_temp_data = rf_temp_data
         self.last_rr_temp_data = rr_temp_data
+
+    def get_color_from_normalized_value(self, normalized_value):
+        """Interpolate color between green and red based on the normalized value (0 to 1)."""
+        # Ensure the value is between 0 and 1 (though it's already normalized)
+        normalized_value = max(0, min(normalized_value, 1))
+        # Interpolating between green (0, 255, 0) and red (255, 0, 0)
+        red = int(255 * normalized_value)
+        green = int(255 * (1 - normalized_value))
+        return QColor(red, green, 0)
+        

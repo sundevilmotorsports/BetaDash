@@ -167,7 +167,7 @@ class GraphModule(QMainWindow):
 
 
     def mouseClicked(self, e):
-        pos = e.pos()
+        pos = e
         #pos = e[0]
         if self.plot_widget.sceneBoundingRect().contains(pos):
             mousePoint = self.plot_widget.plotItem.vb.mapSceneToView(pos)
@@ -242,8 +242,11 @@ class GraphModule(QMainWindow):
         
         if x_column in new_data and y_column in new_data:
             try:
+                print(new_data[x_column])
                 x_values = np.asarray(new_data[x_column]).flatten() 
                 y_values = np.asarray(new_data[y_column]).flatten()
+                #x_values = new_data[x_column]
+                #y_values = new_data[y_column]
                 #self.plot_widget.clear()
                 if x_values[-1] >= self.x_axis_offset+self.end_offset:
                     self.end_offset = x_values[-1]

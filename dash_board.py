@@ -86,7 +86,6 @@ class CustomDashboard(QMainWindow):
 
         self.layout = QVBoxLayout()
         self.toolbar = QHBoxLayout()
-        self.footer = QStatusBar()
         self.layout.addLayout(self.toolbar)
 
         #added self. before all reading_thread
@@ -116,10 +115,6 @@ class CustomDashboard(QMainWindow):
 
         except Exception as e:
             print(f"Error: {e}")
-        
-        # I probably dont want to have a dataframe in here. Maybe try to create a call back in graph_module to regraph when the dataframe in serial changes
-        # Regardless I dont have an elegant solution now.
-
 
         # ------------------------------
         # Adding Buttons to Layout and Window
@@ -173,14 +168,6 @@ class CustomDashboard(QMainWindow):
         self.central_widget = QWidget()
         self.central_widget.setLayout(self.layout)
         self.setCentralWidget(self.central_widget)
-
-    #added serial.tools. to list_ports  
-    def find_available_serial_port(self):
-        available_ports = serial.tools.list_ports.comports()
-        for port in available_ports:
-            if port.device.startswith("COM"):  #This using Windows convention, need to use /dev/tty if linux or mac
-                return port.device
-        return None
 
     def serial_read_loop(self):
         self.serialmonitor._read_data()
