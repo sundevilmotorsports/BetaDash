@@ -7,12 +7,11 @@ from PyQt5.QtWidgets import (
     QComboBox,
     QPushButton,
     QStatusBar,
-    QCheckBox
+    QCheckBox,
+    QMessageBox
 )
 from PyQt5.QtCore import Qt, pyqtSlot, QPointF
 import serialhander as SerialHandler
-
-
 
 class ReportModule(QMainWindow):
     def __init__(self, serialhander : SerialHandler):
@@ -84,6 +83,19 @@ class ReportModule(QMainWindow):
 
         self.layout.addLayout(self.container)
 
+    def destructor(self):
+        print("Destructor called, performing cleanup...")
+        self.serialhandler.data_changed.disconnect(self.update_card)
+        del self.menubar, self.central_widget, self.layout, self.container
+
+        del self.len_run, self.peak_accel, self.max_accel, self.peak_braking, self.max_brake, self.peak_cornering, self.max_corner, self.max_fl_wheel_rpm, self.max_fl_rpm
+        del self.max_fl_rotor_temp, self.max_fl_temp, self.max_fr_wheel_rpm, self.max_fr_rpm, self.max_fr_rotor_temp, self.max_fr_temp, self.fr_shock_travel
+        del self.fr_travel, self.fl_shock_travel, self.fl_travel, self.rl_shock_travel, self.rl_travel, self.rr_shock_travel, self.rr_travel
+
+        del self.serialhandler
+
+        print("Cleanup complete.")
+
     @pyqtSlot(dict)
     def update_card(self, new_data):
         #print("card new data", new_data)
@@ -118,8 +130,14 @@ class ReportModule(QMainWindow):
         self.fr_travel = max(self.fr_travel, new_data["Front Right Shock Pot (mm)"][-1])
         self.fr_shock_travel.setText("Max FR Shock Pot (mm): " + str(self.fr_travel)[0:7])
 
-        self.rl_travel = max(self.rl_travel, new_data["Rear Left Shock Pot (mm)"][-1])
+        self.rl_travel = max(self.rl_travel, new_data["Back Left Shock Pot (mm)"][-1])
         self.rl_shock_travel.setText("Max RL Shock Pot (mm): " + str(self.rl_travel)[0:7])
 
-        self.rr_travel = max(self.rr_travel, new_data["Rear Right Shock Pot (mm)"][-1])
+        self.rr_travel = max(self.rr_travel, new_data["Back Right Shock Pot (mm)"][-1])
         self.rr_shock_travel.setText("Max RR Shock Pot (mm): " + str(self.rr_travel)[0:7])
+
+
+    def closeEvent(self, event):
+        ## This is a function override, be very careful
+        self.destructor() # destructor for all local variables in the class
+        event.accept() # This is the function to actually close the window

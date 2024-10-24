@@ -5,8 +5,8 @@ import time
 import random
 from collections import deque
 import polars as pl
-#added import SerialException
 from serial import SerialException
+import sqlite3
 
 class SerialHandler(QObject):
     data_changed = pyqtSignal(dict)
@@ -57,8 +57,8 @@ class SerialHandler(QObject):
             "Current Draw (mA)": [],
             "Front Right Shock Pot (mm)": [],
             "Front Left Shock Pot (mm)": [],
-            "Rear Right Shock Pot (mm)": [],
-            "Rear Left Shock Pot (mm)": [],
+            "Back Right Shock Pot (mm)": [],
+            "Back Left Shock Pot (mm)": [],
             "Lap Counter": []
         }
         self.temp_data : dict[str, float]= {
@@ -93,50 +93,14 @@ class SerialHandler(QObject):
             "Current Draw (mA)": 0,
             "Front Right Shock Pot (mm)": 0,
             "Front Left Shock Pot (mm)": 0,
-            "Rear Right Shock Pot (mm)": 0,
-            "Rear Left Shock Pot (mm)": 0,
+            "Back Right Shock Pot (mm)": 0,
+            "Back Left Shock Pot (mm)": 0,
             "Lap Counter": 0
             }
         #self.data = pl.DataFrame({col: pl.Series([], pl.Int64) for col in self.columns})
-        '''
-        self.timestamp = False
-        self.xAcceleration = False
-        self.yAcceleration = False
-        self.zAcceleration = False
-        self.xGyro = False
-        self.yGyro = False
-        self.zGyro = False
-        self.Front_Left_Speed = False
-        self.Front_Left_Brake_Temp = False
-        self.Front_Left_Ambient_Temperature = False
-        self.Front_Right_Speed = False
-        self.Front_Right_Brake_Temp = False
-        self.Front_Right_Ambient_Temperature = False
-        self.Back_Left_Speed = False
-        self.Back_Left_Brake_Temp = False
-        self.Back_Left_Ambient_Temperature = False
-        self.Back_Right_Speed = False
-        self.Back_Right_Brake_Temp = False
-        self.Back_Right_Ambient_Temperature = False
-        self.Differential_Speed = False
-
-        self.DRS_Toggle = False
-        self.Steering_Angle = False
-        self.Throttle_Input = False
-        self.Front_Brake_Pressure = False
-        self.Rear_Brake_Pressure = False
-        self.GPS_Latitude = False
-        self.GPS_Longitude = False
-        self.Battery_Voltage = False
-        self.DAQ_Current_Draw = False
-        self.Front_Right_Shock_Pot = False
-        self.Front_Left_Shock_Pot = False
-        self.Rear_Right_Shock_Pot = False
-        self.Rear_Left_Shock_Pot = False
-        '''
         
         for column_name in self.data.keys():
-            self.data_queue[column_name] = deque(maxlen=100)
+            self.data_queue[column_name] = deque(maxlen=200)
     
     def set_sample_rate(self, rate):
         self.sample_rate = rate
@@ -153,6 +117,7 @@ class SerialHandler(QObject):
             if column_name in self.data:
                 #print(values)
                 self.data_queue[column_name].append(values)
+                self.data[column_name].append(values)
             else:
                 print("Invalid column name:", column_name)
         #print("current time: ", time.time())
@@ -160,7 +125,7 @@ class SerialHandler(QObject):
             self.data_changed.emit(self.data_queue)
             #print(self.data_queue)
             self.last_read_time = time.time()
-            print("data changed emitted")
+            #print("data changed emitted")
 
     def _read_data(self) -> None: 
         if self.serial_port == "null":
@@ -200,10 +165,10 @@ class SerialHandler(QObject):
                 self.temp_data["Current Draw (mA)"] = random.random()
                 self.temp_data["Front Right Shock Pot (mm)"] = random.random()
                 self.temp_data["Front Left Shock Pot (mm)"] = random.random()
-                self.temp_data["Rear Right Shock Pot (mm)"] = random.random()
-                self.temp_data["Rear Left Shock Pot (mm)"] = random.random()
+                self.temp_data["Back Right Shock Pot (mm)"] = random.random()
+                self.temp_data["Back Left Shock Pot (mm)"] = random.random()
                 self.temp_data["Lap Counter"] = random.random()  
-                print("temp_data updated")
+                #print("temp_data updated")
                 time.sleep(.1)
                 self.update_data(self.temp_data, self.last_read_time)
         else:
@@ -252,8 +217,8 @@ class SerialHandler(QObject):
                             self.temp_data["Current Draw (mA)"] = data[29]
                             self.temp_data["Front Right Shock Pot (mm)"] = data[30]
                             self.temp_data["Front Left Shock Pot (mm)"] = data[31]
-                            self.temp_data["Rear Right Shock Pot (mm)"] = data[32]
-                            self.temp_data["Rear Left Shock Pot (mm)"] = data[33]
+                            self.temp_data["Back Right Shock Pot (mm)"] = data[32]
+                            self.temp_data["Back Left Shock Pot (mm)"] = data[33]
                             self.temp_data["Lap Counter"] = data[34]
                             break
                         case 1:
@@ -278,8 +243,8 @@ class SerialHandler(QObject):
                             self.temp_data["GPS Longitude (DD)"] = data[19]
                             self.temp_data["Front Right Shock Pot (mm)"] = data[20]
                             self.temp_data["Front Left Shock Pot (mm)"] = data[21]
-                            self.temp_data["Rear Right Shock Pot (mm)"] = data[22]
-                            self.temp_data["Rear Left Shock Pot (mm)"] = data[23]
+                            self.temp_data["Back Right Shock Pot (mm)"] = data[22]
+                            self.temp_data["Back Left Shock Pot (mm)"] = data[23]
                         case 2:
                             self.temp_data["Timestamp (s)"] = data[1]
                             self.temp_data["X Acceleration (mG)"] = data[2]
@@ -287,8 +252,8 @@ class SerialHandler(QObject):
                             self.temp_data["Front Left Speed (mph)"]= data[4] 
                             self.temp_data["Front Right Shock Pot (mm)"] = data[5]
                             self.temp_data["Front Left Shock Pot (mm)"] = data[6]
-                            self.temp_data["Rear Right Shock Pot (mm)"] = data[7]
-                            self.temp_data["Rear Left Shock Pot (mm)"] = data[8]
+                            self.temp_data["Back Right Shock Pot (mm)"] = data[7]
+                            self.temp_data["Back Left Shock Pot (mm)"] = data[8]
                         case 3:
                             self.temp_data["Timestamp (s)"] = data[1]
                             self.temp_data["X Acceleration (mG)"] = data[2]
@@ -304,8 +269,8 @@ class SerialHandler(QObject):
                             self.temp_data["Rear Brake Pressure (BAR)"] = data[12]
                             self.temp_data["Front Right Shock Pot (mm)"] = data[13]
                             self.temp_data["Front Left Shock Pot (mm)"] = data[14]
-                            self.temp_data["Rear Right Shock Pot (mm)"] = data[15]
-                            self.temp_data["Rear Left Shock Pot (mm)"] = data[16]
+                            self.temp_data["Back Right Shock Pot (mm)"] = data[15]
+                            self.temp_data["Back Left Shock Pot (mm)"] = data[16]
                         case 4:
                             self.temp_data["Timestamp (s)"] = data[1]
                             self.temp_data["X Acceleration (mG)"] = data[2]
@@ -396,8 +361,60 @@ class SerialHandler(QObject):
             "Current Draw (mA)": 0,
             "Front Right Shock Pot (mm)": 0,
             "Front Left Shock Pot (mm)": 0,
-            "Rear Right Shock Pot (mm)": 0,
-            "Rear Left Shock Pot (mm)": 0,
+            "Back Right Shock Pot (mm)": 0,
+            "Back Left Shock Pot (mm)": 0,
             "Lap Counter": 0
             }
+
+    def clear_data(self):
+        self.data : dict[str, list[float]] = {
+            "Timestamp (s)": [],
+            "X Acceleration (mG)": [],
+            "Y Acceleration (mG)": [],
+            "Z Acceleration (mG)": [],
+            "X Gyro (mdps)": [],
+            "Y Gyro (mdps)": [],
+            "Z Gyro (mdps)": [],
+            "Front Left Speed (mph)": [],
+            "Front Left Brake Temp (C)": [],
+            "Front Left Ambient Temperature (C)": [],
+            "Front Right Speed (mph)": [],
+            "Front Right Brake Temp (C)": [],
+            "Front Right Ambient Temperature (C)": [],
+            "Back Left Speed (mph)": [],
+            "Back Left Brake Temp (C)": [],
+            "Back Left Ambient Temperature (C)": [],
+            "Back Right Speed (mph)": [],
+            "Back Right Brake Temp (C)": [],
+            "Back Right Ambient Temperature (C)": [],
+            "Differential Speed (RPM)": [],
+            "DRS Toggle": [],
+            "Steering Angle (deg)": [],
+            "Throttle Input": [],
+            "Front Brake Pressure (BAR)" : [],
+            "Rear Brake Pressure (BAR)": [],
+            "GPS Latitude (DD)": [],
+            "GPS Longitude (DD)": [],
+            "Battery Voltage (mV)": [],
+            "Current Draw (mA)": [],
+            "Front Right Shock Pot (mm)": [],
+            "Front Left Shock Pot (mm)": [],
+            "Back Right Shock Pot (mm)": [],
+            "Back Left Shock Pot (mm)": [],
+            "Lap Counter": []
+        }
+        
+    def insert_data_to_db(self, db_name : str):
+        connection = sqlite3.connect(db_name)
+        cursor = connection.cursor()
+        num_rows = len(next(iter(self.data.values()))) 
+
+        for i in range(num_rows):
+            row = [self.data[key][i] for key in self.data.keys()]
+            cursor.execute('''
+                INSERT INTO telemetry_data VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', row)
+        
+        connection.commit()
+        self.clear_data()
                 

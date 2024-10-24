@@ -82,11 +82,11 @@ class GraphModule(QMainWindow):
         
         #self.layout.addLayout(self.sidebox)
 
-        self.reset_button = QPushButton("Reset", self.central_widget)
+        self.reset_button = QPushButton("Reset")
         self.reset_button.clicked.connect(self.reset)
-        self.footer = QStatusBar()
-        self.setStatusBar(self.footer)
-        self.footer.addWidget(self.reset_button)
+        #self.footer = QStatusBar()
+        #self.setStatusBar(self.footer)
+        #self.footer.addWidget(self.reset_button)
 
         collapsible_container = Collapsible()
         collapsible_container.setContentLayout(sideBoxLayout)
@@ -98,6 +98,12 @@ class GraphModule(QMainWindow):
         self.crosshair_enable = False
         self.checkbox.stateChanged.connect(self.toggle)
 
+        self.checkbox_gg = QCheckBox("Toggle GvG Plot")
+        self.checkbox_gg.setChecked(False)
+        self.sidebox.addWidget(self.checkbox_gg)
+        self.gg_enable = False
+        self.checkbox_gg.stateChanged.connect(self.gg_toggle)
+
         self.initialize_combo_boxes()
 
         self.graph_indice = 0
@@ -105,11 +111,34 @@ class GraphModule(QMainWindow):
         self.y_axis_offset = 0
         self.end_offset = 0
 
+        self.graph_point_count = 0
+        self.max_point = 200
+
         self.last_mouse_position = [0, 0]
         self.plot_widget.scene().sigMouseClicked.connect(self.mouseClicked)
         self.escalation_status = 0
         self.events = []
         self.event_markers = []
+
+    def destructor(self):
+        print("Destructor called, performing cleanup...")
+        self.reset_button.clicked.disconnect(self.reset)
+        self.checkbox.stateChanged.disconnect(self.toggle)
+        self.x_combo.currentIndexChanged.disconnect(self.set_labels)
+        self.y_combo.currentIndexChanged.disconnect(self.set_labels)
+        self.serialhandler.data_changed.disconnect(self.update_graph)
+        self.plot_widget.scene().sigMouseMoved.disconnect(self.mouseMoved)
+        self.plot_widget.scene().sigMouseClicked.disconnect(self.mouseClicked)
+
+        del (self.menubar, self.central_widget, self.layout, self.plot_widget, 
+            self.pen, self.sidebox, self.sidebox2, self.x_combo, self.y_combo, 
+            self.trim_container, self.selected_y_columns, self.selected_x, 
+            self.reset_button, self.footer, self.checkbox, self.crosshair_enable, 
+            self.collapsible_container, self.graph_indice, self.x_axis_offset, 
+            self.y_axis_offset, self.end_offset, self.last_mouse_position, 
+            self.escalation_status, self.events, self.event_markers, self.serialhandler)
+
+        print("Cleanup complete.")
         
     def initCrosshair(self):
         if self.crosshair_enable:
@@ -142,6 +171,9 @@ class GraphModule(QMainWindow):
             mousePoint = self.plot_widget.plotItem.vb.mapSceneToView(pos)
             x_pos = mousePoint.x()
             y_pos = mousePoint.y()
+            y_min, y_max = self.plot_widget.viewRange()[1]
+            y_offset_multiplier = 0.05
+            y_offset = (y_max - y_min) * y_offset_multiplier
             x_text = f"X: {x_pos:.2f}"  # Limiting digits to 2 decimal places
             y_text = f"Y: {y_pos:.2f}"  # Limiting digits to 2 decimal places
             self.x_label.setText(x_text)
@@ -150,9 +182,9 @@ class GraphModule(QMainWindow):
             self.x_label.setColor(label_color)
             self.y_label.setColor(label_color)
             self.x_label.setPos(x_pos, y_pos)
-            self.y_label.setPos(x_pos, y_pos)
-            self.crosshair_v.setPos(mousePoint.x())
-            self.crosshair_h.setPos(mousePoint.y())
+            self.y_label.setPos(x_pos, y_pos-y_offset)
+            self.crosshair_v.setPos(x_pos)
+            self.crosshair_h.setPos(y_pos)
             self.last_mouse_position = [x_pos, y_pos]
 
     def toggle(self, state):
@@ -165,10 +197,18 @@ class GraphModule(QMainWindow):
             self.initCrosshair()
             print("Checkbox is checked")
 
+    def gg_toggle(self):
+        print("GG TOGGLE")
+        if self.gg_enable == 1:
+            self.gg_enable = False
+        else:
+            self.gg_enable = True
+            self.x_combo.setCurrentIndex(1)
+            self.y_combo.setCurrentIndex(2)
+            self.plot_widget.clear()
 
     def mouseClicked(self, e):
         pos = e
-        #pos = e[0]
         if self.plot_widget.sceneBoundingRect().contains(pos):
             mousePoint = self.plot_widget.plotItem.vb.mapSceneToView(pos)
             x_pos = mousePoint.x()
@@ -182,7 +222,6 @@ class GraphModule(QMainWindow):
             self.plot_widget.addItem(event_marker, ignoreBounds=True)
             self.escalation_status = 0
             self.event_markers.append([event_marker, x_pos])
-
 
     def reset(self):
         self.pause_graph()
@@ -198,6 +237,7 @@ class GraphModule(QMainWindow):
         font.setPointSize(12)
         self.plot_widget.setLabel('bottom', text=x_label)
         self.plot_widget.setLabel('left', text=y_label)
+        self.plot_widget.autoRange()
         
     def initialize_combo_boxes(self):
         # Clear existing items from combo boxes
@@ -242,20 +282,29 @@ class GraphModule(QMainWindow):
         
         if x_column in new_data and y_column in new_data:
             try:
-                print(new_data[x_column])
+                #print(new_data[x_column])
                 x_values = np.asarray(new_data[x_column]).flatten() 
                 y_values = np.asarray(new_data[y_column]).flatten()
                 #x_values = new_data[x_column]
                 #y_values = new_data[y_column]
                 #self.plot_widget.clear()
+
+                if self.gg_enable:
+                    self.plot_widget.clear()
+                    x_values = x_values[-10:]
+                    y_values = y_values[-10:]
+
                 if x_values[-1] >= self.x_axis_offset+self.end_offset:
+                    print("graph scroll")
                     self.end_offset = x_values[-1]
                     self.plot_widget.clear()
                     if self.crosshair_enable:
                         self.removeCrosshair()
                         self.initCrosshair()
                     self.plot_widget.plot(x=x_values, y=y_values, pen=self.pen)
-                    self.plot_widget.setXRange(max(0, x_values[-1]-100), x_values[-1]+self.x_axis_offset)
+                    self.plot_widget.autoRange()
+                    self.plot_widget.setXRange(max(0, x_values[-1]-200), x_values[-1]+self.x_axis_offset)
+                    self.graph_point_count+=1
                     if self.crosshair_enable:
                         self.crosshair_h.setPos(self.last_mouse_position[1])
                         self.crosshair_v.setPos(self.last_mouse_position[0])
@@ -264,7 +313,12 @@ class GraphModule(QMainWindow):
                             event_marker[0].setPos(event_marker[1])
                     #self.plot_widget.setYRange(min(y_values)-10, max(y_values)+100)
                 else:
+                    #if self.graph_point_count > self.max_point:
+                    #    self.plot_widget.clear()
+                    #    self.graph_point_count = 100 # assumes self.max_point is greater than the queue size
                     self.plot_widget.plot().setData(x=x_values, y=y_values, pen=self.pen)
+                    self.plot_widget.autoRange()
+                    self.graph_point_count+=1
 
             except Exception as e:
                 if "X and Y arrays must be the same shape" in str(e):
@@ -274,14 +328,11 @@ class GraphModule(QMainWindow):
                     y_values = np.asarray(new_data[y_column][:min_size]).flatten()
                     self.plot_widget.plot().setData(x=x_values, y=y_values, pen=self.pen)
                     self.plot_widget.setXRange(max(0, x_values[-1]-100), x_values[-1]+10)
+                    self.graph_point_count+=1
                 else:
                     print("error", e)
         else:
             print("Not able to plot")
-
-
-    def plot_graph(self):
-        pass
 
     def get_info(self):
         """Getter that returns an array with the layouts of the sideboxes"""
@@ -292,3 +343,8 @@ class GraphModule(QMainWindow):
 
     def get_graph_type(self):
         return "GraphModule"
+    
+    def closeEvent(self, event):
+        ## This is a function override, be very careful
+        self.destructor() # destructor for all local variables in the class
+        event.accept() # This is the function to actually close the window

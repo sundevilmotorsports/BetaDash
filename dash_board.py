@@ -14,6 +14,7 @@ from PyQt5.QtWidgets import (
     QSlider,
     QLabel,
     QTextEdit,
+    QRadioButton
 )
 import os
 from PyQt5.QtGui import QIcon
@@ -30,6 +31,7 @@ from PyQt5.QtCore import (
     Qt,
 )
 import time
+import sqlite3
 
 
 class CustomDashboard(QMainWindow):
@@ -140,11 +142,15 @@ class CustomDashboard(QMainWindow):
         self.wheelviz_button.setMaximumWidth(200)
         self.wheelviz_button.clicked.connect(self.add_wheelviz)
 
-        #adams
-        self.test_data_button = QPushButton("Test Data Receive")
-        self.test_data_button.setMaximumWidth(200)
-        self.test_data_button.clicked.connect(self.create_test_data_window)
-        #adams
+        self.radio_button = QRadioButton("USE SQL")
+        self.radio_button.setChecked(False)
+        self.radio_button.clicked.connect(self.create_sql)
+        self.radio_button.clicked.connect(self.toggle_db_write)
+
+        self.write_sql_button = QPushButton("Write Data to DB")
+        self.write_sql_button.setDisabled(True)
+        self.write_sql_button.setMaximumWidth(200)
+        self.write_sql_button.clicked.connect(self.write_sql)
 
         # Populate drop down window with available session objects
         for session in self.sessions:
@@ -157,10 +163,8 @@ class CustomDashboard(QMainWindow):
         self.toolbar.addWidget(self.stop_reading_button)
         self.toolbar.addWidget(self.report_module_button)
         self.toolbar.addWidget(self.wheelviz_button)
-
-        #adams
-        self.toolbar.addWidget(self.test_data_button)
-        #adams
+        self.toolbar.addWidget(self.radio_button)
+        self.toolbar.addWidget(self.write_sql_button)
 
         self.toolbar.addStretch(1)
         self.layout.addWidget(self.mdi_area)
@@ -168,6 +172,11 @@ class CustomDashboard(QMainWindow):
         self.central_widget = QWidget()
         self.central_widget.setLayout(self.layout)
         self.setCentralWidget(self.central_widget)
+
+        ### SQL Implementation - partly lmao
+        self.connection = None
+        self.db_name = None
+
 
     def serial_read_loop(self):
         self.serialmonitor._read_data()
@@ -214,29 +223,64 @@ class CustomDashboard(QMainWindow):
         self.mdi_area.addSubWindow(sub_window)
         sub_window.show()
 
-    #adams
-    def create_test_data_window(self):
-        # Create a new sub-window for Test Data Receive
-        sub_window = QMdiSubWindow()
-        
-        # Create a text edit widget to display the data
-        self.data_display = QTextEdit()
-        self.data_display.setReadOnly(True)  # Make it read-only since it's for displaying data
-        
-        sub_window.setWidget(self.data_display)
-        sub_window.setGeometry(200, 200, 400, 200)  # Set size and position
-        self.mdi_area.addSubWindow(sub_window)
-        sub_window.show()
-        
-        # Start the serial read loop in a separate thread to update the text area
-        self.serialmonitor.data_changed.connect(self.update_test_data_display)
+    def create_sql(self):
+        ### SQL Implementation
+        current_time = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')  # output: "2024-10-09_14-30-45"
+        self.db_name = f"data/telemetry_data_{current_time}.db"
+        self.connection = sqlite3.connect(self.db_name)
+        cursor = self.connection.cursor()
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS telemetry_data (
+            "Timestamp (s)" REAL,
+            "X Acceleration (mG)" REAL,
+            "Y Acceleration (mG)" REAL,
+            "Z Acceleration (mG)" REAL,
+            "X Gyro (mdps)" REAL,
+            "Y Gyro (mdps)" REAL,
+            "Z Gyro (mdps)" REAL,
+            "Front Left Speed (mph)" REAL,
+            "Front Left Brake Temp (C)" REAL,
+            "Front Left Ambient Temperature (C)" REAL,
+            "Front Right Speed (mph)" REAL,
+            "Front Right Brake Temp (C)" REAL,
+            "Front Right Ambient Temperature (C)" REAL,
+            "Back Left Speed (mph)" REAL,
+            "Back Left Brake Temp (C)" REAL,
+            "Back Left Ambient Temperature (C)" REAL,
+            "Back Right Speed (mph)" REAL,
+            "Back Right Brake Temp (C)" REAL,
+            "Back Right Ambient Temperature (C)" REAL,
+            "Differential Speed (RPM)" REAL,
+            "DRS Toggle" REAL,
+            "Steering Angle (deg)" REAL,
+            "Throttle Input" REAL,
+            "Front Brake Pressure (BAR)" REAL,
+            "Rear Brake Pressure (BAR)" REAL,
+            "GPS Latitude (DD)" REAL,
+            "GPS Longitude (DD)" REAL,
+            "Battery Voltage (mV)" REAL,
+            "Current Draw (mA)" REAL,
+            "Front Right Shock Pot (mm)" REAL,
+            "Front Left Shock Pot (mm)" REAL,
+            "Rear Right Shock Pot (mm)" REAL,
+            "Rear Left Shock Pot (mm)" REAL,
+            "Lap Counter" INTEGER)
+        ''')
+        self.connection.commit()
+        self.radio_button.clicked.disconnect(self.create_sql)
+        self.connection.close()
 
-    def update_test_data_display(self, new_data):
-        # Append the new data to the text edit widget
-        self.data_display.append(new_data)
-
-    #adams
-
+    def write_sql(self):    
+        self.write_sql_button.setDisabled(True)
+        self.serialmonitor.insert_data_to_db(self.db_name)
+        print("WRITTEN TO SQL")
+        self.write_sql_button.setDisabled(False)
+        
+    def toggle_db_write(self):
+        if self.radio_button.isChecked():
+            self.write_sql_button.setDisabled(False)
+        else:
+            self.write_sql_button.setDisabled(True)
 
     def save_dashboard(self):
         """Upon a connection with a button, this will save the current state of the dashboard and dump it into a new pickle file which will be stored in the sessions folder."""
