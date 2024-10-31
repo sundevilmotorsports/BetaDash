@@ -1,0 +1,130 @@
+/* QMdiSubWindow ----------------------------------------------------------
+
+This section styles the subwindow in an MDI area
+
+--------------------------------------------------------------------------- */
+QWidget::title {
+  background-color: #19232D;
+  color: #19232D;
+}
+
+QMdiSubWindow {
+  background-color: #19232D;
+  border: 2px solid #455364; 
+  margin: 0px;
+  titlebar-close-icon: url("resources/dark/transparent.png");
+  titlebar-normal-icon: url("resources/dark/transparent.png");
+  titlebar-minimize-icon: url("resources/dark/transparent.png");
+  titlebar-maximize-icon: url("resources/dark/transparent.png");
+}
+
+QMdiSubWindow::title {
+  height: 26px;
+}
+
+QMdiSubWindow::close-button {
+  background: transparent;
+  border: none;
+  background-image: transparent;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  width: 26px;
+  height: 26px;
+  image: url("resources/dark/window_close.png");
+}
+
+QMdiSubWindow::close-button:hover {
+  image: url("resources/dark/window_close_focus.png");
+}
+
+QMdiSubWindow::close-button:pressed {
+  image: url("resources/dark/window_close_pressed.png");
+}
+
+QMdiSubWindow::maximize-button {
+  border: none;
+  background: transparent;
+  background-image: transparent;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  width: 26px;
+  height: 26px;
+  image: url("resources/dark/window_undock.png");
+}
+
+QMdiSubWindow::maximize-button:hover {
+  image: url("resources/dark/window_undock_focus.png");
+}
+
+QMdiSubWindow::maximize-button:pressed {
+  image: url("resources/dark/window_undock_pressed.png");
+}
+
+QMdiSubWindow::minimize-button {
+  border: none;
+  background: transparent;
+  background-image: transparent;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  width: 26px;
+  height: 26px;
+  image: url("resources/dark/window_minimize.png");
+}
+
+QMdiSubWindow::minimize-button:hover {
+  image: url("resources/dark/window_minimize_focus.png");
+}
+
+QMdiSubWindow::minimize-button:pressed {
+  image: url("resources/dark/window_minimize_pressed.png");
+}
+
+QPushButton {
+  background-color: #455364;
+  color: #DFE1E2;
+  border-radius: 4px;
+  padding: 2px;
+  outline: none;
+  border: none;
+  font-size: 16px;
+}
+
+QLabel {
+  background-color: #19232D;
+  border: 0px solid #455364;
+  padding: 2px;
+  margin: 0px;
+  color: #DFE1E2;
+  font-size: 16px;
+}
+
+QLabel:disabled {
+  background-color: #19232D;
+  border: 0px solid #455364;
+  color: #788D9C;
+}
+
+QRadioButton {
+  background-color: #19232D;
+  color: #DFE1E2;
+  spacing: 4px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  border: none;
+  outline: none;
+  font-size: 16px;
+}
+
+QRadioButton:focus {
+  border: none;
+}
+
+QRadioButton:disabled {
+  background-color: #19232D;
+  color: #788D9C;
+  border: none;
+  outline: none;
+}

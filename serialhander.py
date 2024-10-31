@@ -163,10 +163,10 @@ class SerialHandler(QObject):
                 self.temp_data["GPS Longitude (DD)"] = random.random()
                 self.temp_data["Battery Voltage (mV)"] = random.random()
                 self.temp_data["Current Draw (mA)"] = random.random()
-                self.temp_data["Front Right Shock Pot (mm)"] = random.random()
-                self.temp_data["Front Left Shock Pot (mm)"] = random.random()
-                self.temp_data["Back Right Shock Pot (mm)"] = random.random()
-                self.temp_data["Back Left Shock Pot (mm)"] = random.random()
+                self.temp_data["Front Right Shock Pot (mm)"] = (random.random() - .5) * 2
+                self.temp_data["Front Left Shock Pot (mm)"] =(random.random() - .5) * 2
+                self.temp_data["Back Right Shock Pot (mm)"] = (random.random() - .5) * 2
+                self.temp_data["Back Left Shock Pot (mm)"] = (random.random() - .5) * 2
                 self.temp_data["Lap Counter"] = random.random()  
                 #print("temp_data updated")
                 time.sleep(.1)

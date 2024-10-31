@@ -7,10 +7,12 @@ from PyQt5.QtWidgets import (
     QComboBox,
     QPushButton,
     QStatusBar,
-    QCheckBox
+    QCheckBox,
+    QSlider,
+    QColorDialog,
 )
 from PyQt5.QtCore import Qt, pyqtSlot, QPointF
-from PyQt5.QtGui import QColor, QPen, QFont
+from PyQt5.QtGui import QColor, QPen, QFont, QPalette
 from pyqtgraph.Qt import QtCore
 from pyqtgraph.Qt import QtGui
 import pyqtgraph as pg
@@ -19,29 +21,29 @@ from pyqtgraph import PlotDataItem
 import time
 import numpy as np
 import serialhander as SerialHandler
+from checkable_combo import CheckableComboBox
 
 class GraphModule(QMainWindow):
     def __init__(self, serialhander : SerialHandler):
         super().__init__()
         self.setWindowTitle("Graph Module")
         self.setGeometry(100, 100, 1050, 600)
-        self.menubar = self.menuBar()
-        self.menubar.setStyleSheet(
-            "background-color: #333; color: white; font-size: 14px;"
-        )
-        self.menubar.setStyleSheet("QMenu::item:selected { background-color: #555; }")
-        self.menubar.setStyleSheet("QMenu::item:pressed { background-color: #777; }")
+        #self.menubar = self.menuBar()
+        #self.menubar.setStyleSheet(
+        #    "background-color: #333; color: white; font-size: 14px;"
+        #)
+        #self.menubar.setStyleSheet("QMenu::item:selected { background-color: #555; }")
+        #self.menubar.setStyleSheet("QMenu::item:pressed { background-color: #777; }")
 
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
 
         self.layout = QHBoxLayout(self.central_widget)
         self.layout.setContentsMargins(0, 0, 0, 0)
-        sideBoxLayout = QVBoxLayout()
         self.plot_widget = pg.PlotWidget()
         #self.plot_widget.setBackground(QColor('lightgray'))
         self.pen = pg.mkPen(color='red', width=1)
-        self.plot_widget.enableAutoRange(pg.ViewBox.XAxis, enable=False)
+        #self.plot_widget.enableAutoRange(pg.ViewBox.XAxis, enable=False)
         #self.plot_widget.enableAutoRange(pg.ViewBox.YAxis, enable=False)
 
         self.serialhandler = serialhander
@@ -54,8 +56,8 @@ class GraphModule(QMainWindow):
         self.left = False
 
         self.sidebox.setAlignment(Qt.AlignTop)
-        self.x_combo = QComboBox(self.central_widget)
-        self.y_combo = QComboBox(self.central_widget)
+        self.x_combo = QComboBox()
+        self.y_combo = CheckableComboBox()
         self.y_combo.setFixedHeight(25)
 
         self.x_combo.currentIndexChanged.connect(self.set_labels)
@@ -74,22 +76,42 @@ class GraphModule(QMainWindow):
         self.sidebox.addWidget(self.y_combo)
         self.sidebox.addLayout(self.trim_container)
 
+        # Color dialog button
+        self.color_button = QPushButton("Choose Color")
+        self.color_button.clicked.connect(self.open_color_dialog)
+        self.sidebox.addWidget(self.color_button)
+
+        # Thickness slider
+        self.thickness_slider = QSlider(Qt.Horizontal)
+        self.thickness_slider.setRange(1, 10)  # Thickness range
+        self.thickness_slider.setValue(1)  # Default thickness
+        self.thickness_slider.valueChanged.connect(self.update_thickness)
+        self.sidebox.addWidget(QLabel("Graph Thickness:"))
+        self.sidebox.addWidget(self.thickness_slider)
+
+        # Queue Size Slider
+        self.queue_size_slider = QSlider(Qt.Horizontal)
+        self.queue_size_slider.setRange(1, 200) 
+        self.queue_size_slider.setValue(200)
+
+        # Label for slider
+        self.queue_size_label = QLabel(f"Queue Size: {self.queue_size_slider.value()}")
+        self.sidebox.addWidget(self.queue_size_label)
+        self.sidebox.addWidget(self.queue_size_slider)
+
         self.sidebox2.setAlignment(Qt.AlignTop)
 
-        sideBoxLayout = QVBoxLayout()
-        sideBoxLayout.addLayout(self.sidebox)
-        sideBoxLayout.addLayout(self.sidebox2)
+        self.sideBoxLayout = QVBoxLayout()
+        self.sideBoxLayout.addLayout(self.sidebox)
+        self.sideBoxLayout.addLayout(self.sidebox2)
         
         #self.layout.addLayout(self.sidebox)
 
         self.reset_button = QPushButton("Reset")
         self.reset_button.clicked.connect(self.reset)
-        #self.footer = QStatusBar()
-        #self.setStatusBar(self.footer)
-        #self.footer.addWidget(self.reset_button)
 
         collapsible_container = Collapsible()
-        collapsible_container.setContentLayout(sideBoxLayout)
+        collapsible_container.setContentLayout(self.sideBoxLayout)
         self.layout.addWidget(collapsible_container)
 
         self.checkbox = QCheckBox("Toggle Crosshair")
@@ -127,18 +149,29 @@ class GraphModule(QMainWindow):
         self.x_combo.currentIndexChanged.disconnect(self.set_labels)
         self.y_combo.currentIndexChanged.disconnect(self.set_labels)
         self.serialhandler.data_changed.disconnect(self.update_graph)
-        self.plot_widget.scene().sigMouseMoved.disconnect(self.mouseMoved)
-        self.plot_widget.scene().sigMouseClicked.disconnect(self.mouseClicked)
+        try:
+            self.plot_widget.scene().sigMouseMoved.disconnect(self.mouseMoved)
+            self.plot_widget.scene().sigMouseClicked.disconnect(self.mouseClicked)
+        except:
+            pass
 
         del (self.menubar, self.central_widget, self.layout, self.plot_widget, 
             self.pen, self.sidebox, self.sidebox2, self.x_combo, self.y_combo, 
             self.trim_container, self.selected_y_columns, self.selected_x, 
-            self.reset_button, self.footer, self.checkbox, self.crosshair_enable, 
-            self.collapsible_container, self.graph_indice, self.x_axis_offset, 
+            self.reset_button, self.checkbox, self.crosshair_enable, 
+            self.graph_indice, self.x_axis_offset, 
             self.y_axis_offset, self.end_offset, self.last_mouse_position, 
             self.escalation_status, self.events, self.event_markers, self.serialhandler)
 
         print("Cleanup complete.")
+
+    def open_color_dialog(self):
+        color = QColorDialog.getColor()
+        if color.isValid():
+            self.pen.setColor(color)
+
+    def update_thickness(self, value):
+        self.pen.setWidth(value)
         
     def initCrosshair(self):
         if self.crosshair_enable:
@@ -237,7 +270,6 @@ class GraphModule(QMainWindow):
         font.setPointSize(12)
         self.plot_widget.setLabel('bottom', text=x_label)
         self.plot_widget.setLabel('left', text=y_label)
-        self.plot_widget.autoRange()
         
     def initialize_combo_boxes(self):
         # Clear existing items from combo boxes
@@ -279,31 +311,36 @@ class GraphModule(QMainWindow):
     def update_graph(self, new_data):
         x_column = self.x_combo.currentText()
         y_column = self.y_combo.currentText()
+        queue_size = self.queue_size_slider.value()
+        self.queue_size_label.setText(f"Queue Size: {queue_size}")
         
         if x_column in new_data and y_column in new_data:
             try:
-                #print(new_data[x_column])
-                x_values = np.asarray(new_data[x_column]).flatten() 
+                x_values = np.asarray(new_data[x_column]).flatten()
                 y_values = np.asarray(new_data[y_column]).flatten()
-                #x_values = new_data[x_column]
-                #y_values = new_data[y_column]
                 #self.plot_widget.clear()
-
                 if self.gg_enable:
                     self.plot_widget.clear()
-                    x_values = x_values[-10:]
-                    y_values = y_values[-10:]
-
-                if x_values[-1] >= self.x_axis_offset+self.end_offset:
-                    print("graph scroll")
+                    x_values = x_values[-15:]
+                    y_values = y_values[-15:]
+                else:
+                    x_values = x_values[-queue_size:]
+                    y_values = y_values[-queue_size:]
+                if x_values[-1] >= self.x_axis_offset+self.end_offset - 10000000000: ## using temporarily, wanted graph to always plot, testing ranges
                     self.end_offset = x_values[-1]
                     self.plot_widget.clear()
                     if self.crosshair_enable:
                         self.removeCrosshair()
                         self.initCrosshair()
                     self.plot_widget.plot(x=x_values, y=y_values, pen=self.pen)
-                    self.plot_widget.autoRange()
-                    self.plot_widget.setXRange(max(0, x_values[-1]-200), x_values[-1]+self.x_axis_offset)
+                    ## Setting Ranges
+                    if self.gg_enable:
+                        self.plot_widget.setXRange(0, 1)
+                        self.plot_widget.setYRange(0, 1)
+                    else:
+                        #self.plot_widget.setXRange(max(0, x_values[-1]-self.queue_size_slider.value), x_values[-1]+self.x_axis_offset)
+                        y_range = max(y_values) - min(y_values)
+                        #self.plot_widget.setYRange(min(y_values) - y_range * .05, max(y_values) + y_range * .05)
                     self.graph_point_count+=1
                     if self.crosshair_enable:
                         self.crosshair_h.setPos(self.last_mouse_position[1])
@@ -311,13 +348,11 @@ class GraphModule(QMainWindow):
                         for event_marker in self.event_markers:
                             self.plot_widget.addItem(event_marker[0])
                             event_marker[0].setPos(event_marker[1])
-                    #self.plot_widget.setYRange(min(y_values)-10, max(y_values)+100)
                 else:
-                    #if self.graph_point_count > self.max_point:
-                    #    self.plot_widget.clear()
-                    #    self.graph_point_count = 100 # assumes self.max_point is greater than the queue size
+                    if self.gg_enable:
+                        self.plot_widget.setXRange(0, 1)
+                        self.plot_widget.setYRange(0, 1)
                     self.plot_widget.plot().setData(x=x_values, y=y_values, pen=self.pen)
-                    self.plot_widget.autoRange()
                     self.graph_point_count+=1
 
             except Exception as e:
@@ -327,7 +362,7 @@ class GraphModule(QMainWindow):
                     x_values = np.asarray(new_data[x_column][:min_size]).flatten()
                     y_values = np.asarray(new_data[y_column][:min_size]).flatten()
                     self.plot_widget.plot().setData(x=x_values, y=y_values, pen=self.pen)
-                    self.plot_widget.setXRange(max(0, x_values[-1]-100), x_values[-1]+10)
+                    #self.plot_widget.setXRange(max(0, x_values[-1]-100), x_values[-1]+10)
                     self.graph_point_count+=1
                 else:
                     print("error", e)

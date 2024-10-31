@@ -14,7 +14,8 @@ from PyQt5.QtWidgets import (
     QSlider,
     QLabel,
     QTextEdit,
-    QRadioButton
+    QRadioButton,
+    QDockWidget
 )
 import os
 from PyQt5.QtGui import QIcon
@@ -32,7 +33,9 @@ from PyQt5.QtCore import (
 )
 import time
 import sqlite3
-
+import qdarkstyle
+from qdarkstyle.dark.palette import DarkPalette  # noqa: E402
+from qdarkstyle.light.palette import LightPalette  # noqa: E402
 
 class CustomDashboard(QMainWindow):
     def __init__(self):
@@ -78,6 +81,12 @@ class CustomDashboard(QMainWindow):
         # ------------------------------
 
         self.setWindowTitle("Sun Devil Motorsports Beta Data Dashboard")
+        ### DOESNT WORK LAMOOOOOOOO
+        self.setStyleSheet("""QMainWindow::title {
+                                color: purple;
+                                background-color: #2D2D2D;
+                                font-size: 30px;
+                            }""")
         self.setWindowIcon(QIcon("resources/90129757.jpg"))
         self.setGeometry(100, 100, 1800, 900)
         self.mdi_area = QMdiArea()
@@ -218,6 +227,8 @@ class CustomDashboard(QMainWindow):
     def add_wheelviz(self):
         sub_window = QMdiSubWindow()
         wheel_viz = WheelViz(self.serialmonitor)
+        #sub_window.setStyleSheet("QMdiSubWindow { background-color: lightblue; }"
+        #                         "QMdiSubWindow::title { background-color: darkblue; color: black; }")
         sub_window.setWidget(wheel_viz)
         sub_window.setGeometry(wheel_viz.geometry())
         self.mdi_area.addSubWindow(sub_window)
@@ -334,6 +345,9 @@ class CustomDashboard(QMainWindow):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    app.setStyleSheet(qdarkstyle.load_stylesheet(palette=DarkPalette))
+    with open("stylesheets/dark_styling.qss", "r") as f:
+        app.setStyleSheet(app.styleSheet() + f.read())
     window = CustomDashboard()
     window.show()
     sys.exit(app.exec_())

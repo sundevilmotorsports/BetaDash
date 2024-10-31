@@ -1,0 +1,132 @@
+/* QMdiSubWindow ----------------------------------------------------------
+
+This section styles the subwindow in an MDI area
+
+--------------------------------------------------------------------------- */
+QWidget::title {
+  background-color: #FAFAFA;
+  color: #070707;
+}
+
+QMdiSubWindow {
+  background-color: #FAFAFA;
+  margin: 0px;
+  border-radius: 4px;
+  border: 2px solid #a1a1a1;
+  titlebar-close-icon: url("resources/light/transparent.png");
+  titlebar-normal-icon: url("resources/light/transparent.png");
+  titlebar-minimize-icon: url("resources/light/transparent.png");
+  titlebar-maximize-icon: url("resources/light/transparent.png");
+}
+
+QMdiSubWindow::title {
+  height: 26px;
+}
+
+QMdiSubWindow::close-button {
+  background: transparent;
+  border: none;
+  background: transparent;
+  background-image: transparent;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  width: 26px;
+  height: 26px;
+  image: url("resources/light/window_close.png");
+}
+
+QMdiSubWindow::close-button:hover {
+  image: url("resources/light/window_close_focus.png");
+}
+
+QMdiSubWindow::close-button:pressed {
+  image: url("resources/light/window_close_pressed.png");
+}
+
+QMdiSubWindow::maximize-button {
+  border: none;
+  background: transparent;
+  background-image: transparent;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  width: 26px;
+  height: 26px;
+  image: url("resources/light/window_undock.png");
+}
+
+QMdiSubWindow::maximize-button:hover {
+  image: url("resources/light/window_undock_focus.png");
+}
+
+QMdiSubWindow::maximize-button:pressed {
+  image: url("resources/light/window_undock_pressed.png");
+}
+
+QMdiSubWindow::minimize-button {
+  border: none;
+  background: transparent;
+  background-image: transparent;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  width: 26px;
+  height: 26px;
+  image: url("resources/light/window_minimize.png");
+}
+
+QMdiSubWindow::minimize-button:hover {
+  image: url("resources/light/window_minimize_focus.png");
+}
+
+QMdiSubWindow::minimize-button:pressed {
+  image: url("resources/light/window_minimize_pressed.png");
+}
+
+QPushButton {
+  background-color: #C0C4C8;
+  color: #19232D;
+  border-radius: 4px;
+  padding: 2px;
+  outline: none;
+  border: none;
+  font-size: 18px;
+}
+
+QLabel {
+  background-color: #FAFAFA;
+  border: 0px solid #C0C4C8;
+  padding: 2px;
+  margin: 0px;
+  color: #19232D;
+  font-size: 16px;
+}
+
+QLabel:disabled {
+  background-color: #FAFAFA;
+  border: 0px solid #C0C4C8;
+  color: #9DA9B5;
+}
+
+QRadioButton {
+  background-color: #FAFAFA;
+  color: #19232D;
+  spacing: 4px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  border: none;
+  outline: none;
+  font-size: 16px;
+}
+
+QRadioButton:focus {
+  border: none;
+}
+
+QRadioButton:disabled {
+  background-color: #FAFAFA;
+  color: #9DA9B5;
+  border: none;
+  outline: none;
+}

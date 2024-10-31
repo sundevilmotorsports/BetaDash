@@ -18,12 +18,12 @@ class ReportModule(QMainWindow):
         super().__init__()
         self.setWindowTitle("Report Card")
         self.setGeometry(0, 0, 275, 350)
-        self.menubar = self.menuBar()
-        self.menubar.setStyleSheet(
-            "background-color: #333; color: white; font-size: 14px;"
-        )
-        self.menubar.setStyleSheet("QMenu::item:selected { background-color: #555; }")
-        self.menubar.setStyleSheet("QMenu::item:pressed { background-color: #777; }")
+        #self.menubar = self.menuBar()
+        #self.menubar.setStyleSheet(
+        #    "background-color: #333; color: white; font-size: 14px;"
+        #)
+        #self.menubar.setStyleSheet("QMenu::item:selected { background-color: #555; }")
+        #self.menubar.setStyleSheet("QMenu::item:pressed { background-color: #777; }")
 
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
@@ -86,8 +86,7 @@ class ReportModule(QMainWindow):
     def destructor(self):
         print("Destructor called, performing cleanup...")
         self.serialhandler.data_changed.disconnect(self.update_card)
-        del self.menubar, self.central_widget, self.layout, self.container
-
+        del self.central_widget, self.layout, self.container
         del self.len_run, self.peak_accel, self.max_accel, self.peak_braking, self.max_brake, self.peak_cornering, self.max_corner, self.max_fl_wheel_rpm, self.max_fl_rpm
         del self.max_fl_rotor_temp, self.max_fl_temp, self.max_fr_wheel_rpm, self.max_fr_rpm, self.max_fr_rotor_temp, self.max_fr_temp, self.fr_shock_travel
         del self.fr_travel, self.fl_shock_travel, self.fl_travel, self.rl_shock_travel, self.rl_travel, self.rr_shock_travel, self.rr_travel

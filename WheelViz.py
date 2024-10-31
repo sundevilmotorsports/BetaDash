@@ -10,7 +10,9 @@ from PyQt5.QtWidgets import (
     QPushButton,
     QStatusBar,
     QCheckBox,
-    QApplication
+    QApplication,
+    QSpacerItem,
+    QSizePolicy
 )
 from PyQt5.QtCore import Qt, pyqtSlot
 from PyQt5.QtGui import QImage, QPixmap, QTransform, QFont, QBrush, QColor
@@ -19,28 +21,27 @@ from pyqtgraph import ImageView
 import numpy as np
 from serialhander import SerialHandler
 
-class WheelViz(QMainWindow):
+class WheelViz(QWidget):
     def __init__(self, serialhandler : SerialHandler):
         super().__init__()
-        self.setWindowTitle("WheelViz")
+        self.setWindowTitle("Wheel Viz")
         self.setGeometry(0, 0, 700, 550)
-        self.menubar = self.menuBar()
-        self.menubar.setStyleSheet(
-            "background-color: #333; color: white; font-size: 14px;"
-        )
-        self.menubar.setStyleSheet("QMenu::item:selected { background-color: #555; }")
-        self.menubar.setStyleSheet("QMenu::item:pressed { background-color: #777; }")
+        #self.menubar = self.menuBar()
+        #self.menubar.setStyleSheet(
+        #    "background-color: #333; color: white; font-size: 14px;"
+        #)
+        #self.menubar.setStyleSheet("QMenu::item:selected { background-color: #555; }")
+        #self.menubar.setStyleSheet("QMenu::item:pressed { background-color: #777; }")
 
-        self.central_widget = QWidget()
-        self.setCentralWidget(self.central_widget)
-        self.central_widget.setStyleSheet("background-color: black;")
+        #self.central_widget = QWidget()
+        #self.setCentralWidget(self.central_widget)
+        #self.central_widget.setStyleSheet("background-color: black;")
 
-
-        self.layout = QVBoxLayout(self.central_widget)
+        self.layout = QVBoxLayout()
+        self.setLayout(self.layout)
         self.layout2 = QHBoxLayout()
         self.left_layout = QVBoxLayout()
         self.right_layout = QVBoxLayout()  
-        #adams
         self.left2_layout = QVBoxLayout()
         self.right2_layout = QVBoxLayout()
 
@@ -60,24 +61,14 @@ class WheelViz(QMainWindow):
         self.rear_left_combo = QComboBox()
         self.front_right_combo = QComboBox()
         self.rear_right_combo = QComboBox()
-        self.front_left_combo.setStyleSheet("""
-                                            QComboBox {background-color: white;}
-                                            QComboBox QAbstractItemView {background-color: white;}""")
-        self.rear_left_combo.setStyleSheet("""
-                                            QComboBox {background-color: white;}
-                                            QComboBox QAbstractItemView {background-color: white;}""")
-        self.front_right_combo.setStyleSheet("""
-                                            QComboBox {background-color: white;}
-                                            QComboBox QAbstractItemView {background-color: white;}""")
-        self.rear_right_combo.setStyleSheet("""
-                                            QComboBox {background-color: white;}
-                                            QComboBox QAbstractItemView {background-color: white;}""")
         self.front_left_combo.setMaximumSize(150, 30)
         self.rear_left_combo.setMaximumSize(150, 30)
         self.front_right_combo.setMaximumSize(150, 30)
         self.rear_right_combo.setMaximumSize(150, 30)
         self.combo_layout.addWidget(self.front_left_combo)
         self.combo_layout.addWidget(self.rear_left_combo)
+        self.combo_layout.addSpacerItem(QSpacerItem(80, 20, QSizePolicy.Expanding, QSizePolicy.Minimum))
+        self.combo_layout.setStretch(2, 1)
         self.combo_layout.addWidget(self.front_right_combo)
         self.combo_layout.addWidget(self.rear_right_combo)
         self.layout.addLayout(self.combo_layout)
@@ -262,7 +253,7 @@ class WheelViz(QMainWindow):
         print("Destructor called, performing cleanup...")
         self.serialhander.data_changed.disconnect(self.update_bars)
 
-        del (self.menubar, self.central_widget, self.layout, self.layout2, self.left_layout, 
+        del (self.layout, self.layout2, self.left_layout, 
             self.right_layout, self.left2_layout, self.right2_layout, self.label, 
             self.image_label, self.plot_widget_left_front, self.plot_widget_left_rear, 
             self.plot_widget_right_front, self.plot_widget_right_rear, 
@@ -294,6 +285,32 @@ class WheelViz(QMainWindow):
         l2_data_label = self.rear_left_combo.currentText()
         r1_data_label = self.front_right_combo.currentText()
         r2_data_label = self.rear_right_combo.currentText()
+
+        ## I DONT LIKE THIS SOLUTION, FEELS VERY INEFFICIENT
+        if l1_data_label == 'Shock Pot (mm)':
+            self.plot_widget_left_front.setYRange(-1,1)
+            self.plot_widget_left_rear.setYRange(-1,1)
+        else:
+            self.plot_widget_left_front.setYRange(0,1)
+            self.plot_widget_left_rear.setYRange(0,1)
+        if l2_data_label == 'Shock Pot (mm)':
+            self.plot_widget_left_front_temp.setYRange(-1,1)
+            self.plot_widget_left_rear_temp.setYRange(-1,1)
+        else:
+            self.plot_widget_left_front_temp.setYRange(0,1)
+            self.plot_widget_left_rear_temp.setYRange(0,1)
+        if r1_data_label == 'Shock Pot (mm)':
+            self.plot_widget_right_front.setYRange(-1,1)
+            self.plot_widget_right_rear.setYRange(-1,1)
+        else:
+            self.plot_widget_right_front.setYRange(0,1)
+            self.plot_widget_right_rear.setYRange(0,1)
+        if r2_data_label == 'Shock Pot (mm)':
+            self.plot_widget_right_front_temp.setYRange(-1,1)
+            self.plot_widget_right_rear_temp.setYRange(-1,1)
+        else:
+            self.plot_widget_right_front_temp.setYRange(0,1)
+            self.plot_widget_right_rear_temp.setYRange(0,1)
         
         lf_data = new_data["Front Left " + l1_data_label][-1]
         lr_data = new_data["Back Left " + l1_data_label][-1]
@@ -305,35 +322,39 @@ class WheelViz(QMainWindow):
         rf_temp_data = new_data["Front Right " + r2_data_label][-1]
         rr_temp_data = new_data["Back Right " + r2_data_label][-1]
 
-        if lf_data > self.last_lf_data:
-            #self.lf_bar.setColor("green")
-            self.lf_bar.setOpts(height=lf_data, brush=QBrush(QColor("green")))
-        else:
-            self.lf_bar.setOpts(height=lf_data, brush=QBrush(QColor("red")))
-        if lr_data > self.last_lr_data:
-            self.lr_bar.setOpts(height=lr_data, brush=QBrush(QColor("green")))
-        else:
-            self.lr_bar.setOpts(height=lr_data, brush=QBrush(QColor("red")))
-        if rf_data > self.last_rf_data:
-            self.rf_bar.setOpts(height=rf_data, brush=QBrush(QColor("green")))
-        else:
-            self.rf_bar.setOpts(height=rf_data, brush=QBrush(QColor("red")))
-        if rr_data > self.last_rr_data:
-            self.rr_bar.setOpts(height=rr_data, brush=QBrush(QColor("green")))
-        else:
-            self.rr_bar.setOpts(height=rr_data, brush=QBrush(QColor("red")))
-
+        lf_color = self.get_color_from_normalized_value(lf_data)
         lf_temp_color = self.get_color_from_normalized_value(lf_temp_data)
+        self.lf_bar.setOpts(height=lf_data, brush=QBrush(lf_color))
         self.lf_temp_bar.setOpts(height=lf_temp_data, brush=QBrush(lf_temp_color))
 
+        lr_color = self.get_color_from_normalized_value(lr_data)
         lr_temp_color = self.get_color_from_normalized_value(lr_temp_data)
+        self.lr_bar.setOpts(height=lr_data, brush=QBrush(lr_color))
         self.lr_temp_bar.setOpts(height=lr_temp_data, brush=QBrush(lr_temp_color))
 
+        rf_color = self.get_color_from_normalized_value(rf_data)
         rf_temp_color = self.get_color_from_normalized_value(rf_temp_data)
+        self.rf_bar.setOpts(height=rf_data, brush=QBrush(rf_color))
         self.rf_temp_bar.setOpts(height=rf_temp_data, brush=QBrush(rf_temp_color))
 
+        rr_color = self.get_color_from_normalized_value(rr_data)
         rr_temp_color = self.get_color_from_normalized_value(rr_temp_data)
+        self.rr_bar.setOpts(height=rr_data, brush=QBrush(rr_color))
         self.rr_temp_bar.setOpts(height=rr_temp_data, brush=QBrush(rr_temp_color))
+        
+
+        if l1_data_label == 'Speed (mph)':
+            self.lf_bar.setOpts(height=lf_data, brush=(QBrush(QColor("green")) if (lf_data > self.last_lf_data) else QBrush(QColor("red"))))
+            self.lr_bar.setOpts(height=lr_data, brush=(QBrush(QColor("green")) if (lr_data > self.last_lr_data) else QBrush(QColor("red"))))
+        if l2_data_label == 'Speed (mph)':
+            self.lf_temp_bar.setOpts(height=lf_temp_data, brush=(QBrush(QColor("green")) if (lf_data > self.last_lf_data) else QBrush(QColor("red")))) 
+            self.lr_temp_bar.setOpts(height=lr_temp_data, brush=(QBrush(QColor("green")) if (lr_data > self.last_lr_data) else QBrush(QColor("red"))))
+        if r1_data_label == 'Speed (mph)':
+            self.rf_bar.setOpts(height=rf_data, brush=(QBrush(QColor("green")) if (rf_data > self.last_rf_data) else QBrush(QColor("red"))))
+            self.rr_bar.setOpts(height=rr_data, brush=(QBrush(QColor("green")) if (rr_data > self.last_rr_data) else QBrush(QColor("red"))))
+        if r2_data_label == 'Speed (mph)':
+            self.rf_temp_bar.setOpts(height=rf_temp_data, brush=(QBrush(QColor("green")) if (rf_data > self.last_rf_data) else QBrush(QColor("red"))))
+            self.rr_temp_bar.setOpts(height=rr_temp_data, brush=(QBrush(QColor("green")) if (rr_data > self.last_rr_data) else QBrush(QColor("red"))))
 
         self.last_lf_data = lf_data
         self.last_lr_data = lr_data
@@ -350,15 +371,6 @@ class WheelViz(QMainWindow):
         self.right_upper_temp_label.setText(str(f"{rf_temp_data:.2f}"))
         self.right_lower_temp_label.setText(str(f"{rr_temp_data:.2f}"))
 
-        lf_temp_color = self.get_color_from_normalized_value(lf_temp_data)
-        self.lf_temp_bar.setOpts(height=lf_temp_data, brush=QBrush(lf_temp_color))
-        lr_temp_color = self.get_color_from_normalized_value(lr_temp_data)
-        self.lr_temp_bar.setOpts(height=lr_temp_data, brush=QBrush(lr_temp_color))
-        rf_temp_color = self.get_color_from_normalized_value(rf_temp_data)
-        self.rf_temp_bar.setOpts(height=rf_temp_data, brush=QBrush(rf_temp_color))
-        rr_temp_color = self.get_color_from_normalized_value(rr_temp_data)
-        self.rr_temp_bar.setOpts(height=rr_temp_data, brush=QBrush(rr_temp_color))
-
         self.last_lf_temp_data = lf_temp_data
         self.last_lr_temp_data = lr_temp_data
         self.last_rf_temp_data = rf_temp_data
@@ -369,10 +381,10 @@ class WheelViz(QMainWindow):
     def get_color_from_normalized_value(self, normalized_value):
         """Interpolate color between green and red based on the normalized value (0 to 1)."""
         # Ensure the value is between 0 and 1 (though it's already normalized)
-        normalized_value = max(0, min(normalized_value, 1))
+        normalized_value = max(0, min(abs(normalized_value), 1))
         # Interpolating between green (0, 255, 0) and red (255, 0, 0)
-        red = int(255 * normalized_value)
-        green = int(255 * (1 - normalized_value))
+        red = int(255 * abs(normalized_value))
+        green = int(255 * (1 - abs(normalized_value)))
         return QColor(red, green, 0)
 
     def closeEvent(self, event):

@@ -27,7 +27,7 @@ class Collapsible(QWidget):
 
     def initUI(self, title):
 
-        self.toggleButton.setStyleSheet("QToolButton { border: none; }")
+        #self.toggleButton.setStyleSheet("QToolButton { border: none; }")
         self.toggleButton.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         self.toggleButton.setArrowType(Qt.RightArrow)
         self.toggleButton.setText(title)
@@ -38,7 +38,7 @@ class Collapsible(QWidget):
         self.headerLine.setFrameShadow(QFrame.Sunken)
         self.headerLine.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
 
-        self.contentArea.setStyleSheet("QScrollArea { background-color: white; border: none; }")
+        #self.contentArea.setStyleSheet("QScrollArea { background-color: white; border: none; }")
         self.contentArea.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.contentArea.setMaximumWidth(self.CONTENT_AREA_MAX_HEIGHT)
         self.contentArea.setMinimumHeight(self.CONTENT_AREA_MIN_HEIGHT)
