@@ -24,6 +24,7 @@ from serialhander import SerialHandler
 class WheelViz(QWidget):
     def __init__(self, serialhandler : SerialHandler):
         super().__init__()
+        self._cleanup_done = False
         self.setWindowTitle("Wheel Viz")
         self.setGeometry(0, 0, 700, 550)
         #self.menubar = self.menuBar()
@@ -248,26 +249,58 @@ class WheelViz(QWidget):
         del lf_data, rf_data, lr_data, rr_data, lf_temp_data, rf_temp_data, lr_temp_data, rr_temp_data
 
 
+    def get_info(self):
+        return {
+            'type': 'WheelViz',
+            'front_left': self.front_left_combo.currentText(),
+            'rear_left': self.rear_left_combo.currentText(),
+            'front_right': self.front_right_combo.currentText(),
+            'rear_right': self.rear_right_combo.currentText(),
+        }
+    
+    def set_info(self, info):
+        if 'front_left' in info:
+            index = self.front_left_combo.findText(info['front_left'])
+            if index >= 0:
+                self.front_left_combo.setCurrentIndex(index)
+        if 'rear_left' in info:
+            index = self.rear_left_combo.findText(info['rear_left'])
+            if index >= 0:
+                self.rear_left_combo.setCurrentIndex(index)
+        if 'front_right' in info:
+            index = self.front_right_combo.findText(info['front_right'])
+            if index >= 0:
+                self.front_right_combo.setCurrentIndex(index)
+        if 'rear_right' in info:
+            index = self.rear_right_combo.findText(info['rear_right'])
+            if index >= 0:
+                self.rear_right_combo.setCurrentIndex(index)
 
     def destructor(self):
-        print("Destructor called, performing cleanup...")
-        self.serialhander.data_changed.disconnect(self.update_bars)
+            if self._cleanup_done:
+                return  # Skip if cleanup is already done
+            print("Destructor called, performing cleanup...")
+            try:
+                self.serialhander.data_changed.disconnect(self.update_bars)
+            except (TypeError, AttributeError):
+                print("Signal was already disconnected or not connected.")
+            # Proceed with the rest of the cleanup
+            del (self.layout, self.layout2, self.left_layout,   
+                self.right_layout, self.left2_layout, self.right2_layout, self.label, 
+                self.image_label, self.plot_widget_left_front, self.plot_widget_left_rear, 
+                self.plot_widget_right_front, self.plot_widget_right_rear, 
+                self.plot_widget_left_front_temp, self.plot_widget_left_rear_temp, 
+                self.plot_widget_right_front_temp, self.plot_widget_right_rear_temp, 
+                self.lf_bar, self.lr_bar, self.rf_bar, self.rr_bar, self.lf_temp_bar, 
+                self.lr_temp_bar, self.rf_temp_bar, self.rr_temp_bar, self.left_upper_label, 
+                self.left_lower_label, self.right_upper_label, self.right_lower_label, self.serialhander,
+                self.last_lf_data, self.last_lr_data, self.last_rf_data, 
+                self.last_rr_data, self.last_lf_temp_data, self.last_lr_temp_data, 
+                self.last_rf_temp_data, self.last_rr_temp_data, self.left_upper_temp_label, 
+                self.left_lower_temp_label, self.right_upper_temp_label, self.right_lower_temp_label)
+            self._cleanup_done = True
+            print("Cleanup complete.")
 
-        del (self.layout, self.layout2, self.left_layout, 
-            self.right_layout, self.left2_layout, self.right2_layout, self.label, 
-            self.image_label, self.plot_widget_left_front, self.plot_widget_left_rear, 
-            self.plot_widget_right_front, self.plot_widget_right_rear, 
-            self.plot_widget_left_front_temp, self.plot_widget_left_rear_temp, 
-            self.plot_widget_right_front_temp, self.plot_widget_right_rear_temp, 
-            self.lf_bar, self.lr_bar, self.rf_bar, self.rr_bar, self.lf_temp_bar, 
-            self.lr_temp_bar, self.rf_temp_bar, self.rr_temp_bar, self.left_upper_label, 
-            self.left_lower_label, self.right_upper_label, self.right_lower_label, 
-            self.serialhander, self.last_lf_data, self.last_lr_data, self.last_rf_data, 
-            self.last_rr_data, self.last_lf_temp_data, self.last_lr_temp_data, 
-            self.last_rf_temp_data, self.last_rr_temp_data, self.left_upper_temp_label, 
-            self.left_lower_temp_label, self.right_upper_temp_label, self.right_lower_temp_label)
-
-        print("Cleanup complete.")
 
     def get_color_from_normalized_value(self, normalized_value):
         """Interpolate color between green and red based on the normalized value (0 to 1)."""

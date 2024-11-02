@@ -83,6 +83,18 @@ class ReportModule(QMainWindow):
 
         self.layout.addLayout(self.container)
 
+    def get_info(self):
+        """Returns a dictionary containing the state of the ReportModule."""
+        return {
+            'type': 'ReportModule',
+            # Include any state you need to save
+        }
+    
+    def set_info(self, info):
+        """Sets the state of the ReportModule based on the provided info dictionary."""
+        # Restore any saved state if needed
+        pass  # Implement as necessary
+
     def destructor(self):
         print("Destructor called, performing cleanup...")
         self.serialhandler.data_changed.disconnect(self.update_card)

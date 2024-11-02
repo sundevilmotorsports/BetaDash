@@ -161,6 +161,18 @@ class CustomDashboard(QMainWindow):
         self.write_sql_button.setMaximumWidth(200)
         self.write_sql_button.clicked.connect(self.write_sql)
 
+        self.select_session_button = QComboBox()
+        self.select_session_button.setMaximumWidth(200)
+        # Populate drop down window with available session objects
+        for session in self.sessions:
+            self.select_session_button.addItem(
+                session["time"].strftime("%m/%d/%Y, %H:%M:%S")
+            )
+
+        self.load_session_button = QPushButton("Load Session")
+        self.load_session_button.setMaximumWidth(200)
+        self.load_session_button.clicked.connect(self.update_session)
+
         # Populate drop down window with available session objects
         for session in self.sessions:
             self.select_session_button.addItem(
@@ -174,6 +186,8 @@ class CustomDashboard(QMainWindow):
         self.toolbar.addWidget(self.wheelviz_button)
         self.toolbar.addWidget(self.radio_button)
         self.toolbar.addWidget(self.write_sql_button)
+        self.toolbar.addWidget(self.load_session_button)
+        self.toolbar.addWidget(self.select_session_button)
 
         self.toolbar.addStretch(1)
         self.layout.addWidget(self.mdi_area)
@@ -211,6 +225,7 @@ class CustomDashboard(QMainWindow):
         """
         sub_window = QMdiSubWindow()
         threading.Thread(self.graph_modules.append(GraphModule(self.serialmonitor))).start()
+        sub_window.setAttribute(Qt.WA_DeleteOnClose)
         sub_window.setWidget(self.graph_modules[-1])
         sub_window.setGeometry(self.graph_modules[-1].geometry())
         self.mdi_area.addSubWindow(sub_window)
@@ -219,6 +234,7 @@ class CustomDashboard(QMainWindow):
     def create_report_module(self):
         sub_window = QMdiSubWindow()
         report_card = ReportModule(self.serialmonitor)
+        sub_window.setAttribute(Qt.WA_DeleteOnClose)
         sub_window.setWidget(report_card)
         sub_window.setGeometry(report_card.geometry())
         self.mdi_area.addSubWindow(sub_window)
@@ -229,6 +245,7 @@ class CustomDashboard(QMainWindow):
         wheel_viz = WheelViz(self.serialmonitor)
         #sub_window.setStyleSheet("QMdiSubWindow { background-color: lightblue; }"
         #                         "QMdiSubWindow::title { background-color: darkblue; color: black; }")
+        sub_window.setAttribute(Qt.WA_DeleteOnClose)
         sub_window.setWidget(wheel_viz)
         sub_window.setGeometry(wheel_viz.geometry())
         self.mdi_area.addSubWindow(sub_window)
@@ -294,12 +311,78 @@ class CustomDashboard(QMainWindow):
             self.write_sql_button.setDisabled(True)
 
     def save_dashboard(self):
+        """Save the current state of the dashboard and dump it into a new pickle file."""
+        data = {
+            "pos": [],
+            "size": [],
+            "metadata": [],
+            "time": datetime.now(),
+        }
+        for tab in self.mdi_area.subWindowList():
+            widget = tab.widget()
+            pos = tab.pos()
+            size = tab.size()
+            print(f"Saving subwindow: {widget}, Position: {pos}, Size: {size}")
+            data["pos"].append((tab.pos().x(), tab.pos().y()))
+            data["size"].append((tab.size().width(), tab.size().height()))
+            data["metadata"].append(tab.widget().get_info())
+        pickle.dump(
+            data,
+            open(f"sessions/{datetime.now().strftime('%m-%d-%Y, %H_%M_%S')}.pkl", "wb"),
+        )
+        self.select_session_button.addItem(data["time"].strftime("%m/%d/%Y, %H:%M:%S"))
+        self.sessions.append(data)
+
+    def update_session(self):
+        """Load a selected session from the dropdown."""
+        index = self.select_session_button.currentIndex()
+        if index < 0 or index >= len(self.sessions):
+            return  # Invalid index
+        active_session = self.sessions[index]
+        tab_amt = len(active_session["pos"])
+        print(active_session)
+        # Remove existing subwindows
+        for window in self.mdi_area.subWindowList():
+            window.close()
+        # Recreate subwindows
+        for i in range(tab_amt):
+            metadata = active_session["metadata"][i]
+            window_type = metadata.get('type', 'Unknown')
+            pos = active_session["pos"][i]
+            size = active_session["size"][i]
+            print(f"Restoring window {i}: type={window_type}, Position={pos}, Size={size}")
+            if window_type == 'GraphModule':
+                sub_window = QMdiSubWindow()
+                sub_window.setAttribute(Qt.WA_DeleteOnClose)
+                graph_module = GraphModule(self.serialmonitor)
+                graph_module.set_info(metadata)
+                sub_window.setWidget(graph_module)
+            elif window_type == 'WheelViz':
+                sub_window = QMdiSubWindow()
+                sub_window.setAttribute(Qt.WA_DeleteOnClose)
+                wheel_viz = WheelViz(self.serialmonitor)
+                wheel_viz.set_info(metadata)
+                sub_window.setWidget(wheel_viz)
+            elif window_type == 'ReportModule':
+                sub_window = QMdiSubWindow()
+                sub_window.setAttribute(Qt.WA_DeleteOnClose)
+                report_card = ReportModule(self.serialmonitor)
+                report_card.set_info(metadata)
+                sub_window.setWidget(report_card)
+            else:
+                continue  # Unknown window type, skip
+            self.mdi_area.addSubWindow(sub_window)
+            sub_window.move(pos[0], pos[1])
+            sub_window.resize(size[0], size[1])
+            sub_window.show()
+
+    '''
+    def save_dashboard(self):
         """Upon a connection with a button, this will save the current state of the dashboard and dump it into a new pickle file which will be stored in the sessions folder."""
         data = {
             "pos": [],
             "size": [],
             "metadata": [],
-            "csv": handler.get_names(),
             "time": datetime.now(),
         }
         for tab in self.mdi_area.subWindowList():
@@ -342,6 +425,8 @@ class CustomDashboard(QMainWindow):
                     active_session["metadata"][i][0][1],
                     active_session["metadata"][i][0][2],
                 )
+    '''
+    
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

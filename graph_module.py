@@ -26,6 +26,7 @@ from checkable_combo import CheckableComboBox
 class GraphModule(QMainWindow):
     def __init__(self, serialhander : SerialHandler):
         super().__init__()
+        self._cleanup_done = False
         self.setWindowTitle("Graph Module")
         self.setGeometry(100, 100, 1050, 600)
         #self.menubar = self.menuBar()
@@ -107,8 +108,8 @@ class GraphModule(QMainWindow):
         
         #self.layout.addLayout(self.sidebox)
 
-        self.reset_button = QPushButton("Reset")
-        self.reset_button.clicked.connect(self.reset)
+        #self.reset_button = QPushButton("Reset")
+        #self.reset_button.clicked.connect(self.reset)
 
         collapsible_container = Collapsible()
         collapsible_container.setContentLayout(self.sideBoxLayout)
@@ -143,8 +144,10 @@ class GraphModule(QMainWindow):
         self.event_markers = []
 
     def destructor(self):
+        if self._cleanup_done:
+            return  # Skip cleanup if already done
         print("Destructor called, performing cleanup...")
-        self.reset_button.clicked.disconnect(self.reset)
+        #self.reset_button.clicked.disconnect(self.reset)
         self.checkbox.stateChanged.disconnect(self.toggle)
         self.x_combo.currentIndexChanged.disconnect(self.set_labels)
         self.y_combo.currentIndexChanged.disconnect(self.set_labels)
@@ -155,14 +158,14 @@ class GraphModule(QMainWindow):
         except:
             pass
 
-        del (self.menubar, self.central_widget, self.layout, self.plot_widget, 
+        del (self.central_widget, self.layout, self.plot_widget, 
             self.pen, self.sidebox, self.sidebox2, self.x_combo, self.y_combo, 
-            self.trim_container, self.selected_y_columns, self.selected_x, 
-            self.reset_button, self.checkbox, self.crosshair_enable, 
+            self.trim_container, self.selected_y_columns, self.selected_x,
+            self.checkbox, self.crosshair_enable, 
             self.graph_indice, self.x_axis_offset, 
             self.y_axis_offset, self.end_offset, self.last_mouse_position, 
             self.escalation_status, self.events, self.event_markers, self.serialhandler)
-
+        self._cleanup_done = True
         print("Cleanup complete.")
 
     def open_color_dialog(self):
@@ -370,11 +373,59 @@ class GraphModule(QMainWindow):
             print("Not able to plot")
 
     def get_info(self):
-        """Getter that returns an array with the layouts of the sideboxes"""
-        info = []
-        for i in self.data_set:
-            info.append(i.get_info())
-        return info
+        """Returns a dictionary containing the state of the GraphModule."""
+        return {
+            'type': 'GraphModule',
+            'x_axis': self.x_combo.currentText(),
+            'y_axes': self.y_combo.currentData(),  # Use currentData() to get selected items
+            'color': self.pen.color().name(),
+            'thickness': self.pen.width(),
+            'queue_size': self.queue_size_slider.value(),
+            'crosshair_enabled': self.crosshair_enable,
+            'gvg_enabled': self.gg_enable,
+        }
+
+    
+    def set_info(self, info):
+        """Sets the state of the GraphModule based on the provided info dictionary."""
+        if 'x_axis' in info:
+            index = self.x_combo.findText(info['x_axis'])
+            if index >= 0:
+                self.x_combo.setCurrentIndex(index)
+            else:
+                print(f"Warning: X axis '{info['x_axis']}' not found in combo box.")
+        if 'y_axes' in info:
+            # Uncheck all items first
+            for i in range(self.y_combo.model().rowCount()):
+                item = self.y_combo.model().item(i)
+                item.setCheckState(Qt.Unchecked)
+            # Check the saved items
+            for y_axis in info['y_axes']:
+                found = False
+                for i in range(self.y_combo.model().rowCount()):
+                    item = self.y_combo.model().item(i)
+                    if item.text() == y_axis:
+                        item.setCheckState(Qt.Checked)
+                        found = True
+                        break
+                if not found:
+                    print(f"Warning: Y axis '{y_axis}' not found in combo box.")
+            # Update the display text
+            self.y_combo.updateText()
+        if 'color' in info:
+            color = QColor(info['color'])
+            self.pen.setColor(color)
+        if 'thickness' in info:
+            self.pen.setWidth(info['thickness'])
+            self.thickness_slider.setValue(info['thickness'])
+        if 'queue_size' in info:
+            self.queue_size_slider.setValue(info['queue_size'])
+        if 'crosshair_enabled' in info:
+            self.checkbox.setChecked(info['crosshair_enabled'])
+        if 'gvg_enabled' in info:
+            self.checkbox_gg.setChecked(info['gvg_enabled'])
+
+
 
     def get_graph_type(self):
         return "GraphModule"
