@@ -29,7 +29,7 @@ import glob
 import pickle
 from datetime import datetime
 from PyQt5.QtCore import (
-    Qt,
+    Qt, QTimer
 )
 import time
 import sqlite3
@@ -350,13 +350,14 @@ class CustomDashboard(QMainWindow):
             window_type = metadata.get('type', 'Unknown')
             pos = active_session["pos"][i]
             size = active_session["size"][i]
-            print(f"Restoring window {i}: type={window_type}, Position={pos}, Size={size}")
+            print(f"Restoring window {i}: type={window_type}, Position={pos}, Size={size}, Metadata={metadata}")
             if window_type == 'GraphModule':
                 sub_window = QMdiSubWindow()
                 sub_window.setAttribute(Qt.WA_DeleteOnClose)
                 graph_module = GraphModule(self.serialmonitor)
                 graph_module.set_info(metadata)
                 sub_window.setWidget(graph_module)
+                QTimer.singleShot(0, lambda gm=graph_module, md=metadata: gm.set_info(md))
             elif window_type == 'WheelViz':
                 sub_window = QMdiSubWindow()
                 sub_window.setAttribute(Qt.WA_DeleteOnClose)

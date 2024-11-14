@@ -58,7 +58,7 @@ class GraphModule(QMainWindow):
 
         self.sidebox.setAlignment(Qt.AlignTop)
         self.x_combo = QComboBox()
-        self.y_combo = CheckableComboBox()
+        self.y_combo = QComboBox()
         self.y_combo.setFixedHeight(25)
 
         self.x_combo.currentIndexChanged.connect(self.set_labels)
@@ -377,7 +377,7 @@ class GraphModule(QMainWindow):
         return {
             'type': 'GraphModule',
             'x_axis': self.x_combo.currentText(),
-            'y_axes': self.y_combo.currentData(),  # Use currentData() to get selected items
+            'y_axis': self.y_combo.currentText(),  # Use currentData() to get selected items
             'color': self.pen.color().name(),
             'thickness': self.pen.width(),
             'queue_size': self.queue_size_slider.value(),
@@ -394,24 +394,15 @@ class GraphModule(QMainWindow):
                 self.x_combo.setCurrentIndex(index)
             else:
                 print(f"Warning: X axis '{info['x_axis']}' not found in combo box.")
-        if 'y_axes' in info:
-            # Uncheck all items first
-            for i in range(self.y_combo.model().rowCount()):
-                item = self.y_combo.model().item(i)
-                item.setCheckState(Qt.Unchecked)
-            # Check the saved items
-            for y_axis in info['y_axes']:
-                found = False
-                for i in range(self.y_combo.model().rowCount()):
-                    item = self.y_combo.model().item(i)
-                    if item.text() == y_axis:
-                        item.setCheckState(Qt.Checked)
-                        found = True
-                        break
-                if not found:
-                    print(f"Warning: Y axis '{y_axis}' not found in combo box.")
+
+        if 'y_axis' in info:
+            index = self.y_combo.findText(info['y_axis'])
+            if index >= 0:
+                self.y_combo.setCurrentIndex(index)
+            else:
+                print(f"Warning: Y axis '{info['y_axis']}' not found in combo box.")
             # Update the display text
-            self.y_combo.updateText()
+            #self.y_combo.updateText()
         if 'color' in info:
             color = QColor(info['color'])
             self.pen.setColor(color)
