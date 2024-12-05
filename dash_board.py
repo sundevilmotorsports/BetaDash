@@ -15,7 +15,8 @@ from PyQt5.QtWidgets import (
     QLabel,
     QTextEdit,
     QRadioButton,
-    QDockWidget
+    QDockWidget,
+    QDialog
 )
 import os
 from PyQt5.QtGui import QIcon
@@ -23,6 +24,8 @@ from graph_module import GraphModule
 from serialhander import SerialHandler
 from report_card import ReportModule
 from WheelViz import WheelViz
+from label_module import DataTypeDialog
+from label_module import LabelModule
 import serial.tools.list_ports
 import threading
 import glob
@@ -81,12 +84,6 @@ class CustomDashboard(QMainWindow):
         # ------------------------------
 
         self.setWindowTitle("Sun Devil Motorsports Beta Data Dashboard")
-        ### DOESNT WORK LAMOOOOOOOO
-        self.setStyleSheet("""QMainWindow::title {
-                                color: purple;
-                                background-color: #2D2D2D;
-                                font-size: 30px;
-                            }""")
         self.setWindowIcon(QIcon("resources/90129757.jpg"))
         self.setGeometry(100, 100, 1800, 900)
         self.mdi_area = QMdiArea()
@@ -102,19 +99,43 @@ class CustomDashboard(QMainWindow):
         #added self. before all reading_thread
         try:
             # Get a list of available serial ports
-            available_ports = serial.tools.list_ports.comports()
+            while True:
+                available_ports = serial.tools.list_ports.comports()
+                port_vec = []
+                num = -1
+                print("1: Fake Data")
+                port_vec.append("null")
+                for i, port in enumerate(available_ports):
+                    print(i + 2, ": ",port.name, "\t", port.description)
+                    port_vec.append(port.name)
 
-            # Iterate through each available port and try to connect
-            for port in available_ports:
                 try:
-                    print(f"Attempting to connect to {port.name}")
-                    self.serialmonitor = SerialHandler(port.name, 9600, 1, .1) # be careful with the last parameter anything with .09 or lower is unstable
+                    num = int(input("Choose an port number from list above: "))
+                    if num < 0:
+                        raise ValueError("input must be greater than 0")
+
+                    self.serialmonitor = SerialHandler(port_vec[num-1], 9600, 1, .02)
                     self.reading_thread = threading.Thread(target=self.serial_read_loop)
                     self.reading_thread.daemon = True
                     self.reading_thread.start()
-                    #self.serialmonitor.data_changed.connect(self.update_all_graphs)
-                    print(f"Connected to {port.name}")
-                    break  # Break out of the loop if connection is successful
+                    print(f"Connected to {port_vec[num-1]}")
+                    break
+                except Exception as e:
+                    print(f"Error connecting to port index {num-1}: {e}")
+                    
+            # Iterate through each available port and try to connect
+            '''
+            for port in available_ports:
+                try:
+                    print(f"Attempt to connect to {port.name}? [y/n]")
+                    if input() == 'y':
+                        self.serialmonitor = SerialHandler(port.name, 9600, 1, .02)
+                        self.reading_thread = threading.Thread(target=self.serial_read_loop)
+                        self.reading_thread.daemon = True
+                        self.reading_thread.start()
+                        #self.serialmonitor.data_changed.connect(self.update_all_graphs)
+                        print(f"Connected to {port.name}")
+                        break  # Break out of the loop if connection is successful
                 except Exception as e:
                     print(f"Error connecting to {port.name}: {e}")
             else:
@@ -123,6 +144,7 @@ class CustomDashboard(QMainWindow):
                 self.reading_thread = threading.Thread(target=self.serial_read_loop)
                 self.reading_thread.daemon = True
                 self.reading_thread.start()
+            '''
 
         except Exception as e:
             print(f"Error: {e}")
@@ -135,9 +157,9 @@ class CustomDashboard(QMainWindow):
         self.graph_module_button.setMaximumWidth(200)
         self.graph_module_button.clicked.connect(self.create_graph_module)
 
-        self.save_dashboard_button = QPushButton("Save Dashboard")
-        self.save_dashboard_button.setMaximumWidth(200)
-        self.save_dashboard_button.clicked.connect(self.save_dashboard)
+        self.label_module_button = QPushButton("Add Label Module")
+        self.label_module_button.setMaximumWidth(200)
+        self.label_module_button.clicked.connect(self.create_label_module)
         
         self.stop_reading_button = QPushButton("Stop Serial Read")
         self.stop_reading_button.setMaximumWidth(200)
@@ -161,6 +183,10 @@ class CustomDashboard(QMainWindow):
         self.write_sql_button.setMaximumWidth(200)
         self.write_sql_button.clicked.connect(self.write_sql)
 
+        self.save_dashboard_button = QPushButton("Save Dashboard")
+        self.save_dashboard_button.setMaximumWidth(200)
+        self.save_dashboard_button.clicked.connect(self.save_dashboard)
+
         self.select_session_button = QComboBox()
         self.select_session_button.setMaximumWidth(200)
         # Populate drop down window with available session objects
@@ -178,18 +204,23 @@ class CustomDashboard(QMainWindow):
             self.select_session_button.addItem(
                 session["time"].strftime("%m/%d/%Y, %H:%M:%S")
             )
-        # Add all buttons to the toolbar
+
+        self.refresh_rate_label = QLabel("Hertz: ")
+        self.refresh_rate_label.setStyleSheet("background-color: #455364;")
+        self.serialmonitor.data_changed.connect(self.update_refresh_rate)
+
         self.toolbar.addWidget(self.graph_module_button)
-        self.toolbar.addWidget(self.save_dashboard_button)
+        self.toolbar.addWidget(self.label_module_button)
         self.toolbar.addWidget(self.stop_reading_button)
         self.toolbar.addWidget(self.report_module_button)
         self.toolbar.addWidget(self.wheelviz_button)
         self.toolbar.addWidget(self.radio_button)
         self.toolbar.addWidget(self.write_sql_button)
+        self.toolbar.addWidget(self.save_dashboard_button)
         self.toolbar.addWidget(self.load_session_button)
         self.toolbar.addWidget(self.select_session_button)
-
         self.toolbar.addStretch(1)
+        self.toolbar.addWidget(self.refresh_rate_label)
         self.layout.addWidget(self.mdi_area)
 
         self.central_widget = QWidget()
@@ -200,6 +231,9 @@ class CustomDashboard(QMainWindow):
         self.connection = None
         self.db_name = None
 
+    def update_refresh_rate(self, update_data):
+        rate = update_data["Refresh Rate"][-1]
+        self.refresh_rate_label.setText(f"{rate:.1f}" + " Hz")
 
     def serial_read_loop(self):
         self.serialmonitor._read_data()
@@ -230,6 +264,18 @@ class CustomDashboard(QMainWindow):
         sub_window.setGeometry(self.graph_modules[-1].geometry())
         self.mdi_area.addSubWindow(sub_window)
         sub_window.show()
+
+    def create_label_module(self):
+        dialog = DataTypeDialog(self)
+        if dialog.exec_() == QDialog.Accepted:
+            selected_data_type, value = dialog.return_selected()
+            sub_window = QMdiSubWindow()
+            label_module = LabelModule(self.serialmonitor, selected_data_type)
+            #sub_window.setAttribute(Qt.WA_DeleteOnClose)
+            sub_window.setWidget(label_module)
+            sub_window.setGeometry(label_module.geometry())
+            self.mdi_area.addSubWindow(sub_window)
+            sub_window.show()
 
     def create_report_module(self):
         sub_window = QMdiSubWindow()

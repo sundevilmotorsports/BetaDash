@@ -58,7 +58,8 @@ class GraphModule(QMainWindow):
 
         self.sidebox.setAlignment(Qt.AlignTop)
         self.x_combo = QComboBox()
-        self.y_combo = CheckableComboBox()
+        #self.y_combo = CheckableComboBox()
+        self.y_combo = QComboBox()
         self.y_combo.setFixedHeight(25)
 
         self.x_combo.currentIndexChanged.connect(self.set_labels)
@@ -92,8 +93,8 @@ class GraphModule(QMainWindow):
 
         # Queue Size Slider
         self.queue_size_slider = QSlider(Qt.Horizontal)
-        self.queue_size_slider.setRange(1, 200) 
-        self.queue_size_slider.setValue(200)
+        self.queue_size_slider.setRange(1, 300) 
+        self.queue_size_slider.setValue(300)
 
         # Label for slider
         self.queue_size_label = QLabel(f"Queue Size: {self.queue_size_slider.value()}")
@@ -135,7 +136,7 @@ class GraphModule(QMainWindow):
         self.end_offset = 0
 
         self.graph_point_count = 0
-        self.max_point = 200
+        self.max_point = 300
 
         self.last_mouse_position = [0, 0]
         self.plot_widget.scene().sigMouseClicked.connect(self.mouseClicked)
@@ -242,6 +243,7 @@ class GraphModule(QMainWindow):
             self.x_combo.setCurrentIndex(1)
             self.y_combo.setCurrentIndex(2)
             self.plot_widget.clear()
+            self.queue_size_slider.setValue(50)
 
     def mouseClicked(self, e):
         pos = e
@@ -300,11 +302,22 @@ class GraphModule(QMainWindow):
             "Back Right Speed (mph)",
             "Back Right Brake Temp (C)",
             "Back Right Ambient Temperature (C)",
-            "DRS Toggle", 
-            "Steering Angle", 
-            "Throttle Input", 
-            "Battery Voltage (V)", 
-            "DAQ Current Draw (A)"
+            "Differential Speed (RPM)",
+            "DRS Toggle",
+            "Steering Angle (deg)",
+            "Throttle Input",
+            "Front Brake Pressure (BAR)" ,
+            "Rear Brake Pressure (BAR)",
+            "GPS Latitude (DD)",
+            "GPS Longitude (DD)",
+            "Battery Voltage (mV)",
+            "Current Draw (mA)",
+            "Front Right Shock Pot (mm)",
+            "Front Left Shock Pot (mm)",
+            "Back Right Shock Pot (mm)",
+            "Back Left Shock Pot (mm)",
+            "Lap Counter",
+            "Refresh Rate"
         ]
         for column_name in column_names:
             self.x_combo.addItem(column_name)
@@ -322,24 +335,19 @@ class GraphModule(QMainWindow):
                 x_values = np.asarray(new_data[x_column]).flatten()
                 y_values = np.asarray(new_data[y_column]).flatten()
                 #self.plot_widget.clear()
-                if self.gg_enable:
-                    self.plot_widget.clear()
-                    x_values = x_values[-15:]
-                    y_values = y_values[-15:]
-                else:
-                    x_values = x_values[-queue_size:]
-                    y_values = y_values[-queue_size:]
+                x_values = x_values[-queue_size:]
+                y_values = y_values[-queue_size:]
                 if x_values[-1] >= self.x_axis_offset+self.end_offset - 10000000000: ## using temporarily, wanted graph to always plot, testing ranges
                     self.end_offset = x_values[-1]
                     self.plot_widget.clear()
                     if self.crosshair_enable:
                         self.removeCrosshair()
-                        self.initCrosshair()
+                        self.initCrosshair()   
                     self.plot_widget.plot(x=x_values, y=y_values, pen=self.pen)
                     ## Setting Ranges
                     if self.gg_enable:
-                        self.plot_widget.setXRange(0, 1)
-                        self.plot_widget.setYRange(0, 1)
+                        self.plot_widget.setXRange(-100, 100)
+                        self.plot_widget.setYRange(-100, 100)
                     else:
                         #self.plot_widget.setXRange(max(0, x_values[-1]-self.queue_size_slider.value), x_values[-1]+self.x_axis_offset)
                         y_range = max(y_values) - min(y_values)

@@ -1,3 +1,6 @@
 __pycache__/
 data/
 sessions/
+dist/
+build/
+dash_board.spec
