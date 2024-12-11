@@ -15,7 +15,8 @@ from PyQt5.QtWidgets import (
     QLabel,
     QTextEdit,
     QRadioButton,
-    QDockWidget
+    QDockWidget,
+    QTabWidget
 )
 import os
 from PyQt5.QtGui import QIcon
@@ -42,46 +43,35 @@ class CustomDashboard(QMainWindow):
         super().__init__()
 
         # Initialize and start application
-
-        # ------------------------------
-        # Pickle Implementation
-        # Object Serialization
-        # ------------------------------
-
-        # Loads established pickle files within /sessions folder
-        # Appends loaded files encapsulated within a 'Session' object and adds to sessions array of 'Session' objects stored in file
         self.sessions = []
         self.graph_modules = []
         self.video_modules = []
-        #create sessions and data folder is not there already
+
+        def __init__(self):
+            # ...
+            self.new_session_data = {"pos": [], "size": [], "metadata": []}
+            self.current_tab_index = 0
+            # ...
+
+        # Create sessions and data folders if not present
         os.makedirs("sessions", exist_ok=True)
         os.makedirs("data", exist_ok=True)
 
-        sessions = glob.glob(f"sessions/*.pkl")
-        data = glob.glob(f"data/*.pkl")
+        sessions = glob.glob("sessions/*.pkl")
+        data_files = glob.glob("data/*.pkl")
         for file in sessions:
             session = pickle.load(open(file, "rb"))
             self.sessions.append(session)
 
-        # Appends loaded files into
-        for file in data:
-            data = pickle.load(open(file, "rb"))
-            handler.add_session(data)
 
-        # ------------------------------
-        # Window Implementation
-        #      ____________
-        #     /            \  <- PyQT House
-        #    /              \
-        #   |   __________   |
-        #   |  |pyqtgraph |  |
-        #   |  |__________|  |
-        #   |                |
-        #   |________________|
-        # ------------------------------
+        # If you have a 'handler' variable referenced, make sure it's defined or remove this block
+        # For clarity, removing references to 'handler.add_session(data)'
+        # since 'handler' is not defined here. If you have a global 'handler', define it before use.
+        # for file in data_files:
+        #     data = pickle.load(open(file, "rb"))
+        #     handler.add_session(data)
 
         self.setWindowTitle("Sun Devil Motorsports Beta Data Dashboard")
-        ### DOESNT WORK LAMOOOOOOOO
         self.setStyleSheet("""QMainWindow::title {
                                 color: purple;
                                 background-color: #2D2D2D;
@@ -99,27 +89,23 @@ class CustomDashboard(QMainWindow):
         self.toolbar = QHBoxLayout()
         self.layout.addLayout(self.toolbar)
 
-        #added self. before all reading_thread
+        # Attempt to connect to a serial port
         try:
-            # Get a list of available serial ports
             available_ports = serial.tools.list_ports.comports()
-
-            # Iterate through each available port and try to connect
             for port in available_ports:
                 try:
                     print(f"Attempting to connect to {port.name}")
-                    self.serialmonitor = SerialHandler(port.name, 9600, 1, .1) # be careful with the last parameter anything with .09 or lower is unstable
+                    self.serialmonitor = SerialHandler(port.name, 9600, 1, 0.1)
                     self.reading_thread = threading.Thread(target=self.serial_read_loop)
                     self.reading_thread.daemon = True
                     self.reading_thread.start()
-                    #self.serialmonitor.data_changed.connect(self.update_all_graphs)
                     print(f"Connected to {port.name}")
-                    break  # Break out of the loop if connection is successful
+                    break
                 except Exception as e:
                     print(f"Error connecting to {port.name}: {e}")
             else:
                 print("No open serial ports found. Starting testing SerialHandler")
-                self.serialmonitor = SerialHandler("null", 9600, 1, .1)
+                self.serialmonitor = SerialHandler("null", 9600, 1, 0.1)
                 self.reading_thread = threading.Thread(target=self.serial_read_loop)
                 self.reading_thread.daemon = True
                 self.reading_thread.start()
@@ -127,10 +113,7 @@ class CustomDashboard(QMainWindow):
         except Exception as e:
             print(f"Error: {e}")
 
-        # ------------------------------
-        # Adding Buttons to Layout and Window
-        # ------------------------------
-
+        # Buttons
         self.graph_module_button = QPushButton("Add Graph Module")
         self.graph_module_button.setMaximumWidth(200)
         self.graph_module_button.clicked.connect(self.create_graph_module)
@@ -161,24 +144,27 @@ class CustomDashboard(QMainWindow):
         self.write_sql_button.setMaximumWidth(200)
         self.write_sql_button.clicked.connect(self.write_sql)
 
-        self.select_session_button = QComboBox()
-        self.select_session_button.setMaximumWidth(200)
-        # Populate drop down window with available session objects
-        for session in self.sessions:
-            self.select_session_button.addItem(
-                session["time"].strftime("%m/%d/%Y, %H:%M:%S")
-            )
+        # Replace the combo box and load session button with a QTabWidget
+        self.tab_widget = QTabWidget()
+        self.tab_widget.setMaximumWidth(400)
+        self.tab_widget.setTabsClosable(True)
+        self.tab_widget.tabCloseRequested.connect(self.close_session_tab)
+        self.tab_widget.currentChanged.connect(self.load_session_from_tab)
 
-        self.load_session_button = QPushButton("Load Session")
-        self.load_session_button.setMaximumWidth(200)
-        self.load_session_button.clicked.connect(self.update_session)
+        # Add tab widget below toolbar
+        self.layout.addWidget(self.tab_widget)
 
-        # Populate drop down window with available session objects
+
+        # Start with a "New Session" tab
+        self.tab_widget.addTab(QWidget(), "New Session")
+
+        # Add tabs for previously saved sessions
         for session in self.sessions:
-            self.select_session_button.addItem(
-                session["time"].strftime("%m/%d/%Y, %H:%M:%S")
-            )
-        # Add all buttons to the toolbar
+            session_name = session["time"].strftime("%m/%d/%Y, %H:%M:%S")
+            self.tab_widget.addTab(QWidget(), session_name)
+
+
+        # Add buttons to the toolbar
         self.toolbar.addWidget(self.graph_module_button)
         self.toolbar.addWidget(self.save_dashboard_button)
         self.toolbar.addWidget(self.stop_reading_button)
@@ -186,8 +172,6 @@ class CustomDashboard(QMainWindow):
         self.toolbar.addWidget(self.wheelviz_button)
         self.toolbar.addWidget(self.radio_button)
         self.toolbar.addWidget(self.write_sql_button)
-        self.toolbar.addWidget(self.load_session_button)
-        self.toolbar.addWidget(self.select_session_button)
 
         self.toolbar.addStretch(1)
         self.layout.addWidget(self.mdi_area)
@@ -196,38 +180,92 @@ class CustomDashboard(QMainWindow):
         self.central_widget.setLayout(self.layout)
         self.setCentralWidget(self.central_widget)
 
-        ### SQL Implementation - partly lmao
         self.connection = None
         self.db_name = None
 
+    def load_session_from_tab(self, index):
+        # If the "New Session" tab is selected (index 0), clear the workspace
+        if index == 0:
+            # Remove all subwindows to ensure a blank workspace
+            for window in self.mdi_area.subWindowList():
+                window.close()
+            return
+
+        # If index corresponds to a saved session, load that session
+        if index > len(self.sessions):
+            # Invalid index, do nothing
+            return
+
+        active_session = self.sessions[index - 1]  # since index 0 is "New Session"
+        tab_amt = len(active_session["pos"])
+        print("Loading session from tab:", active_session)
+
+        # Remove existing subwindows
+        for window in self.mdi_area.subWindowList():
+            window.close()
+
+        # Recreate subwindows for this saved session
+        for i in range(tab_amt):
+            metadata = active_session["metadata"][i]
+            window_type = metadata.get('type', 'Unknown')
+            pos = active_session["pos"][i]
+            size = active_session["size"][i]
+            print(f"Restoring window {i}: type={window_type}, Position={pos}, Size={size}, Metadata={metadata}")
+
+            if window_type == 'GraphModule':
+                sub_window = QMdiSubWindow()
+                sub_window.setAttribute(Qt.WA_DeleteOnClose)
+                graph_module = GraphModule(self.serialmonitor)
+                graph_module.set_info(metadata)
+                sub_window.setWidget(graph_module)
+                QTimer.singleShot(0, lambda gm=graph_module, md=metadata: gm.set_info(md))
+            elif window_type == 'WheelViz':
+                sub_window = QMdiSubWindow()
+                sub_window.setAttribute(Qt.WA_DeleteOnClose)
+                wheel_viz = WheelViz(self.serialmonitor)
+                wheel_viz.set_info(metadata)
+                sub_window.setWidget(wheel_viz)
+            elif window_type == 'ReportModule':
+                sub_window = QMdiSubWindow()
+                sub_window.setAttribute(Qt.WA_DeleteOnClose)
+                report_card = ReportModule(self.serialmonitor)
+                report_card.set_info(metadata)
+                sub_window.setWidget(report_card)
+            else:
+                continue
+
+            self.mdi_area.addSubWindow(sub_window)
+            sub_window.move(pos[0], pos[1])
+            sub_window.resize(size[0], size[1])
+            sub_window.show()
+
+    def close_session_tab(self, index):
+        # Prevent closing the "New Session" tab (index 0)
+        if index == 0:
+            return
+        self.tab_widget.removeTab(index)
+        # Optionally remove session data if desired
+        # del self.sessions[index - 1]
 
     def serial_read_loop(self):
         self.serialmonitor._read_data()
 
-    #def stop_serial_read(self):
-    #    self.serialmonitor.stop_reading()
-    #    reading_thread.stop()
-    
-    #fixed? stop serial button
     def stop_serial_read(self):
         self.serialmonitor.stop_reading()
-        if self.reading_thread.is_alive():  # Check if the thread is running
-            self.reading_thread.join()  # Properly join the thread instead of stopping it abruptly
-
+        if self.reading_thread.is_alive():
+            self.reading_thread.join()
 
     def update_all_graphs(self, new_data):
         for graphmodule in self.graph_modules:
             graphmodule.update_graph(new_data)
 
     def create_graph_module(self):
-        """Upon a connection with a button, this will create a sub-window which is a container for a GraphModule (check class)
-        This subwindow is added to the Multiple Document Interface which is the meat and potatoes of our application.
-        """
         sub_window = QMdiSubWindow()
-        threading.Thread(self.graph_modules.append(GraphModule(self.serialmonitor))).start()
+        new_module = GraphModule(self.serialmonitor)
+        self.graph_modules.append(new_module)
         sub_window.setAttribute(Qt.WA_DeleteOnClose)
-        sub_window.setWidget(self.graph_modules[-1])
-        sub_window.setGeometry(self.graph_modules[-1].geometry())
+        sub_window.setWidget(new_module)
+        sub_window.setGeometry(new_module.geometry())
         self.mdi_area.addSubWindow(sub_window)
         sub_window.show()
 
@@ -243,8 +281,6 @@ class CustomDashboard(QMainWindow):
     def add_wheelviz(self):
         sub_window = QMdiSubWindow()
         wheel_viz = WheelViz(self.serialmonitor)
-        #sub_window.setStyleSheet("QMdiSubWindow { background-color: lightblue; }"
-        #                         "QMdiSubWindow::title { background-color: darkblue; color: black; }")
         sub_window.setAttribute(Qt.WA_DeleteOnClose)
         sub_window.setWidget(wheel_viz)
         sub_window.setGeometry(wheel_viz.geometry())
@@ -252,8 +288,7 @@ class CustomDashboard(QMainWindow):
         sub_window.show()
 
     def create_sql(self):
-        ### SQL Implementation
-        current_time = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')  # output: "2024-10-09_14-30-45"
+        current_time = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
         self.db_name = f"data/telemetry_data_{current_time}.db"
         self.connection = sqlite3.connect(self.db_name)
         cursor = self.connection.cursor()
@@ -311,7 +346,6 @@ class CustomDashboard(QMainWindow):
             self.write_sql_button.setDisabled(True)
 
     def save_dashboard(self):
-        """Save the current state of the dashboard and dump it into a new pickle file."""
         data = {
             "pos": [],
             "size": [],
@@ -326,18 +360,22 @@ class CustomDashboard(QMainWindow):
             data["pos"].append((tab.pos().x(), tab.pos().y()))
             data["size"].append((tab.size().width(), tab.size().height()))
             data["metadata"].append(tab.widget().get_info())
-        pickle.dump(
-            data,
-            open(f"sessions/{datetime.now().strftime('%m-%d-%Y, %H_%M_%S')}.pkl", "wb"),
-        )
-        self.select_session_button.addItem(data["time"].strftime("%m/%d/%Y, %H:%M:%S"))
+
+        filename = f"sessions/{data['time'].strftime('%m-%d-%Y, %H_%M_%S')}.pkl"
+        pickle.dump(data, open(filename, "wb"))
+        session_name = data["time"].strftime("%m/%d/%Y, %H:%M:%S")
         self.sessions.append(data)
 
+
+        self.tab_widget.addTab(QWidget(), session_name)
+        self.tab_widget.setCurrentIndex(self.tab_widget.count() - 1)
+
+    '''
+
     def update_session(self):
-        """Load a selected session from the dropdown."""
         index = self.select_session_button.currentIndex()
         if index < 0 or index >= len(self.sessions):
-            return  # Invalid index
+            return
         active_session = self.sessions[index]
         tab_amt = len(active_session["pos"])
         print(active_session)
@@ -371,63 +409,14 @@ class CustomDashboard(QMainWindow):
                 report_card.set_info(metadata)
                 sub_window.setWidget(report_card)
             else:
-                continue  # Unknown window type, skip
+                continue
             self.mdi_area.addSubWindow(sub_window)
             sub_window.move(pos[0], pos[1])
             sub_window.resize(size[0], size[1])
             sub_window.show()
 
     '''
-    def save_dashboard(self):
-        """Upon a connection with a button, this will save the current state of the dashboard and dump it into a new pickle file which will be stored in the sessions folder."""
-        data = {
-            "pos": [],
-            "size": [],
-            "metadata": [],
-            "time": datetime.now(),
-        }
-        for tab in self.mdi_area.subWindowList():
-            # TAKE NOTE: SOME ERRORS OCCUR HERE WHEN SWITCHING ACTIVE SESSIONS. I GOT AN ERROR BUT STRUGGLED TO REPLICATE IT.
-            # TRY TO DEBUG IN FUTURE.
-            data["pos"].append((tab.pos().x(), tab.pos().y()))
-            data["size"].append((tab.size().width(), tab.size().height()))
-            data["metadata"].append(tab.widget().get_info())
-        pickle.dump(
-            data,
-            open(f"sessions/{datetime.now().strftime('%m-%d-%Y, %H_%M_%S')}.pkl", "wb"),
-        )
-        self.select_session_button.addItem(data["time"].strftime("%m/%d/%Y, %H:%M:%S"))
-        self.sessions.append(data)
 
-    def update_session(self):
-        """Upon a connection with a combobox, this will allow the user to select a different active session. This change will be repr"""
-        active_session = self.sessions[self.select_session_button.currentIndex()]
-        # active_session = handler.get_active_sessions[self.select_session_button.currentIndex()]
-        tab_amt = len(active_session["pos"])
-        print(active_session)
-        for window in self.mdi_area.subWindowList():
-            self.mdi_area.removeSubWindow(window)
-        print(len(self.mdi_area.subWindowList()))
-        for tab in range(tab_amt):
-            self.create_graph_module()
-        for i, tab in enumerate(self.mdi_area.subWindowList()):
-            tab.move(active_session["pos"][i][0], active_session["pos"][i][1])
-            tab.resize(active_session["size"][i][0], active_session["size"][i][1])
-            if (tab.widget().get_graph_type() == "GraphModule"):
-                tab.widget().init_combobox(
-                    active_session["metadata"][i][0][0],
-                    active_session["metadata"][i][0][1],
-                    active_session["metadata"][i][0][2],
-                )
-            else:
-                #implement for lap module, should be able to show the different laps from when saved
-                tab.widget().init_combobox(
-                    active_session["metadata"][i][0][0],
-                    active_session["metadata"][i][0][1],
-                    active_session["metadata"][i][0][2],
-                )
-    '''
-    
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

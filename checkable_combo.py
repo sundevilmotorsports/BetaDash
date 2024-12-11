@@ -39,7 +39,7 @@ class CheckableComboBox(QComboBox):
         self.updateText()
         super().resizeEvent(event)
 
-    def eventFilter(self, object, event):
+    '''def eventFilter(self, object, event):
 
         if object == self.lineEdit():
             if event.type() == QEvent.MouseButtonRelease:
@@ -63,6 +63,30 @@ class CheckableComboBox(QComboBox):
                     print("AttributeError: 'NoneType' object has no attribute 'checkState'")
                 return True
         return False
+    '''
+
+    def eventFilter(self, object, event):
+        if object == self.view().viewport():
+            if event.type() == QEvent.MouseButtonRelease:
+                index = self.view().indexAt(event.pos())
+                if index.isValid():
+                    item = self.model().item(index.row())
+                    if item is not None:
+                        if item.checkState() == Qt.Checked:
+                            item.setCheckState(Qt.Unchecked)
+                        else:
+                            item.setCheckState(Qt.Checked)
+                        # Emit dataChanged signal to update the display text
+                        self.model().dataChanged.emit(index, index)
+                    else:
+                        print(f"Item at index {index.row()} is None")
+                else:
+                    print(f"No valid index at position {event.pos()}")
+                return True
+        return False
+
+
+
 
     def showPopup(self):
         super().showPopup()
@@ -112,10 +136,20 @@ class CheckableComboBox(QComboBox):
                 data = None
             self.addItem(text, data)
 
-    def currentData(self):
+    '''def currentData(self):
         # Return the list of selected items data
         res = []
         for i in range(self.model().rowCount()):
             if self.model().item(i).checkState() == Qt.Checked:
                 res.append(self.model().item(i).data())
+        return res
+    '''
+
+    def currentData(self):
+        # Return the list of selected items' data
+        res = []
+        for i in range(self.model().rowCount()):
+            item = self.model().item(i)
+            if item.checkState() == Qt.Checked:
+                res.append(item.data())
         return res

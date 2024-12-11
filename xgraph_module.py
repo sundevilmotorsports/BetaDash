@@ -41,23 +41,7 @@ class GraphModule(QMainWindow):
 
         self.layout = QHBoxLayout(self.central_widget)
         self.layout.setContentsMargins(0, 0, 0, 0)
-        self.plot_widget = pg.GraphicsLayoutWidget()
-        self.plot_items = []
-        self.plot_data_items = {}   
-        self.line_colors = {}  # Store colors for each y_column
-        self.plot_order = []
-
-        self.rainbow_colors = [
-            QColor("#FF0000"),  # Red
-            QColor("#FF7F00"),  # Orange
-            QColor("#FFFF00"),  # Yellow
-            QColor("#00FF00"),  # Green
-            QColor("#0000FF"),  # Blue
-            QColor("#4B0082"),  # Indigo
-            QColor("#8B00FF")   # Violet
-        ]
-        self.color_index = 0
-
+        self.plot_widget = pg.PlotWidget()
         #self.plot_widget.setBackground(QColor('lightgray'))
         self.pen = pg.mkPen(color='red', width=1)
         #self.plot_widget.enableAutoRange(pg.ViewBox.XAxis, enable=False)
@@ -74,12 +58,11 @@ class GraphModule(QMainWindow):
 
         self.sidebox.setAlignment(Qt.AlignTop)
         self.x_combo = QComboBox()
-        self.y_combo = CheckableComboBox()
-        self.y_combo.model().dataChanged.connect(lambda: self.modifyPlots())
+        self.y_combo = QComboBox()
         self.y_combo.setFixedHeight(25)
 
-        #self.x_combo.currentIndexChanged.connect(self.set_labels)
-        #self.y_combo.currentIndexChanged.connect(self.set_labels)
+        self.x_combo.currentIndexChanged.connect(self.set_labels)
+        self.y_combo.currentIndexChanged.connect(self.set_labels)
 
         trim_upper = QHBoxLayout()
         trim_under = QHBoxLayout()
@@ -88,16 +71,16 @@ class GraphModule(QMainWindow):
         self.selected_y_columns = None
         self.selected_x = None
 
-        self.y_list_layout = QVBoxLayout()
-        self.y_list_layout.setSpacing(2)  # Reduce vertical spacing
-        self.y_list_layout.setContentsMargins(0, 0, 0, 0)  # Remove margins
-        self.sidebox.addLayout(self.y_list_layout)
-
         self.sidebox.addWidget(QLabel("Select X Axis Column:"))
         self.sidebox.addWidget(self.x_combo)
         self.sidebox.addWidget(QLabel("Select Y Axis Column:"))
         self.sidebox.addWidget(self.y_combo)
         self.sidebox.addLayout(self.trim_container)
+
+        # Color dialog button
+        self.color_button = QPushButton("Choose Color")
+        self.color_button.clicked.connect(self.open_color_dialog)
+        self.sidebox.addWidget(self.color_button)
 
         # Thickness slider
         self.thickness_slider = QSlider(Qt.Horizontal)
@@ -155,7 +138,7 @@ class GraphModule(QMainWindow):
         self.max_point = 200
 
         self.last_mouse_position = [0, 0]
-        #self.plot_widget.scene().sigMouseClicked.connect(self.mouseClicked)
+        self.plot_widget.scene().sigMouseClicked.connect(self.mouseClicked)
         self.escalation_status = 0
         self.events = []
         self.event_markers = []
@@ -166,6 +149,8 @@ class GraphModule(QMainWindow):
         print("Destructor called, performing cleanup...")
         #self.reset_button.clicked.disconnect(self.reset)
         self.checkbox.stateChanged.disconnect(self.toggle)
+        self.x_combo.currentIndexChanged.disconnect(self.set_labels)
+        self.y_combo.currentIndexChanged.disconnect(self.set_labels)
         self.serialhandler.data_changed.disconnect(self.update_graph)
         try:
             self.plot_widget.scene().sigMouseMoved.disconnect(self.mouseMoved)
@@ -185,7 +170,7 @@ class GraphModule(QMainWindow):
 
     def open_color_dialog(self):
         color = QColorDialog.getColor()
-        if color.isValid(): 
+        if color.isValid():
             self.pen.setColor(color)
 
     def update_thickness(self, value):
@@ -245,8 +230,8 @@ class GraphModule(QMainWindow):
             print("Checkbox is unchecked")
         else:
             self.crosshair_enable = True
-            #self.initCrosshair()
-            print("Checkbox is checked crosshair disabled rn")
+            self.initCrosshair()
+            print("Checkbox is checked")
 
     def gg_toggle(self):
         print("GG TOGGLE")
@@ -279,7 +264,7 @@ class GraphModule(QMainWindow):
         self.set_active_data()
         self.plot_graph()
 
-    '''def set_labels(self):
+    def set_labels(self):
         x_label = self.x_combo.currentText()
         y_label = self.y_combo.currentText()
         self.plot_widget.clear()
@@ -288,7 +273,7 @@ class GraphModule(QMainWindow):
         font.setPointSize(12)
         self.plot_widget.setLabel('bottom', text=x_label)
         self.plot_widget.setLabel('left', text=y_label)
-    '''
+        self.plot_widget.getPlotItem().getAxis("bottom").hide()
         
     def initialize_combo_boxes(self):
         # Clear existing items from combo boxes
@@ -329,204 +314,71 @@ class GraphModule(QMainWindow):
     @pyqtSlot(dict)
     def update_graph(self, new_data):
         x_column = self.x_combo.currentText()
-        y_columns = list(self.plot_data_items.keys())
+        y_column = self.y_combo.currentText()
         queue_size = self.queue_size_slider.value()
         self.queue_size_label.setText(f"Queue Size: {queue_size}")
+        
+        if x_column in new_data and y_column in new_data:
+            try:
+                x_values = np.asarray(new_data[x_column]).flatten()
+                y_values = np.asarray(new_data[y_column]).flatten()
+                #self.plot_widget.clear()
+                if self.gg_enable:
+                    self.plot_widget.clear()
+                    x_values = x_values[-15:]
+                    y_values = y_values[-15:]
+                else:
+                    x_values = x_values[-queue_size:]
+                    y_values = y_values[-queue_size:]
+                if x_values[-1] >= self.x_axis_offset+self.end_offset - 10000000000: ## using temporarily, wanted graph to always plot, testing ranges
+                    self.end_offset = x_values[-1]
+                    self.plot_widget.clear()
+                    if self.crosshair_enable:
+                        self.removeCrosshair()
+                        self.initCrosshair()
+                    self.plot_widget.plot(x=x_values, y=y_values, pen=self.pen)
+                    ## Setting Ranges
+                    if self.gg_enable:
+                        self.plot_widget.setXRange(0, 1)
+                        self.plot_widget.setYRange(0, 1)
+                    else:
+                        #self.plot_widget.setXRange(max(0, x_values[-1]-self.queue_size_slider.value), x_values[-1]+self.x_axis_offset)
+                        y_range = max(y_values) - min(y_values)
+                        #self.plot_widget.setYRange(min(y_values) - y_range * .05, max(y_values) + y_range * .05)
+                    self.graph_point_count+=1
+                    if self.crosshair_enable:
+                        self.crosshair_h.setPos(self.last_mouse_position[1])
+                        self.crosshair_v.setPos(self.last_mouse_position[0])
+                        for event_marker in self.event_markers:
+                            self.plot_widget.addItem(event_marker[0])
+                            event_marker[0].setPos(event_marker[1])
+                else:
+                    if self.gg_enable:
+                        self.plot_widget.setXRange(0, 1)
+                        self.plot_widget.setYRange(0, 1)
+                    self.plot_widget.plot().setData(x=x_values, y=y_values, pen=self.pen)
+                    self.graph_point_count+=1
 
-        if x_column not in new_data:
-            print(f"X column '{x_column}' not found in data")
-            return
-
-        x_values = np.asarray(new_data[x_column]).flatten()
-        x_values = x_values[-queue_size:]
-
-        for y_column in y_columns:
-            if y_column not in new_data:
-                print(f"Y column '{y_column}' not found in data")
-                continue
-
-            y_values = np.asarray(new_data[y_column]).flatten()
-            y_values = y_values[-queue_size:]
-
-            # Synchronize lengths
-            min_length = min(len(x_values), len(y_values))
-            x_values_sync = x_values[-min_length:]
-            y_values_sync = y_values[-min_length:]
-
-            # Update existing plot data
-            data_item = self.plot_data_items[y_column]['data_item']
-            data_item.setData(x=x_values_sync, y=y_values_sync)
-
-            # Optionally, update y-axis range if needed
-            y_min, y_max = np.min(y_values_sync), np.max(y_values_sync)
-            y_range = y_max - y_min
-            y_pad = y_range * 0.05  # 5% padding
-            plot_item = self.plot_data_items[y_column]['plot_item']
-            plot_item.setYRange(y_min - y_pad, y_max + y_pad, padding=0)
-
-        # Update x-axis range on the bottom plotif self.plot_items:
-        if len(self.plot_items) > 0:
-            x_min, x_max = x_values_sync[0], x_values_sync[-1]
-            self.plot_items[-1].setXRange(x_min, x_max, padding=0)
-
-
-    def modifyPlots(self):
-        y_columns = self.y_combo.currentData()
-        print("Selected Y columns:", y_columns)
-
-        num_plots = len(y_columns)
-        if num_plots == 0:
-            if not hasattr(self, 'no_y_columns_printed') or not self.no_y_columns_printed:
-                print("No Y-columns selected")
-                self.no_y_columns_printed = True
-            return
+            except Exception as e:
+                if "X and Y arrays must be the same shape" in str(e):
+                    print(str(e))
+                    min_size = min(len(new_data[x_column]), len(new_data[y_column]))
+                    x_values = np.asarray(new_data[x_column][:min_size]).flatten()
+                    y_values = np.asarray(new_data[y_column][:min_size]).flatten()
+                    self.plot_widget.plot().setData(x=x_values, y=y_values, pen=self.pen)
+                    #self.plot_widget.setXRange(max(0, x_values[-1]-100), x_values[-1]+10)
+                    self.graph_point_count+=1
+                else:
+                    print("error", e)
         else:
-            self.no_y_columns_printed = False
-
-        print("Before sorting:", y_columns)
-        if not self.plot_order:
-            self.plot_order = list(y_columns)       
-        else:
-            for col in y_columns:
-                if col not in self.plot_order:
-                    self.plot_order.append(col)    
-        y_columns = [y for y in self.plot_order if y in y_columns]
-        print("After sorting:", y_columns)
-
-        # Remove any plots that are no longer selected
-        for y_col in list(self.plot_data_items.keys()):
-            if y_col not in y_columns:
-                plot_item = self.plot_data_items[y_col]['plot_item']
-                self.plot_widget.removeItem(plot_item)
-                del self.plot_data_items[y_col]
-                self.plot_items.remove(plot_item)
-                if y_col in self.plot_order:
-                    self.plot_order.remove(y_col)
-
-        y_columns = [y for y in self.plot_order if y in y_columns]
-
-        # Adjust plot positions
-        for idx, y_column in enumerate(y_columns):
-            if y_column in self.plot_data_items:
-                # Update plot position
-                plot_item = self.plot_data_items[y_column]['plot_item']
-                self.plot_widget.ci.addItem(plot_item, row=idx, col=0)
-            else:
-                # Assign a rainbow color
-                color = self.rainbow_colors[self.color_index % len(self.rainbow_colors)]
-                self.color_index += 1
-
-                plot_item = self.plot_widget.addPlot(row=idx, col=0)
-                data_item = plot_item.plot(pen=pg.mkPen(color=color, width=1))
-                self.plot_data_items[y_column] = {'plot_item': plot_item, 'data_item': data_item}
-                self.plot_items.append(plot_item)
-                self.line_colors[y_column] = color
-                # Add y_column to plot_order if not already there
-                if y_column not in self.plot_order:
-                    self.plot_order.append(y_column)
-
-        if len(self.plot_items) > 0:
-            bottom_plot = self.plot_items[-1]
-            for plot_item in self.plot_items[:-1]:
-                plot_item.setXLink(bottom_plot)
-
-        self.update_axes_visibility()
-        self.update_graph(self.serialhandler.data)
-
-        # Clear existing widgets in y_list_layout
-        for i in reversed(range(self.y_list_layout.count())):
-            item = self.y_list_layout.takeAt(i)
-            w = item.widget()
-            if w:
-                w.deleteLater()
-
-        for y_col in y_columns:
-            h_layout = QHBoxLayout()
-            label = QLabel(y_col)
-            color_btn = QPushButton()
-            color_btn.setFixedSize(20,20)
-            c = self.line_colors[y_col]
-            color_btn.setStyleSheet(f"background-color: {c.name()}; border: 1px solid black;")
-            color_btn.clicked.connect(lambda ch, yc=y_col: self.change_line_color(yc))
-            h_layout.addWidget(color_btn)
-            h_layout.addWidget(label)
-            widget_container = QWidget()
-            widget_container.setLayout(h_layout)
-            self.y_list_layout.addWidget(widget_container)
-
-        print("modifyPlots called")
-
-    def update_axes_visibility(self):
-        """
-        This method ensures that only the bottom plot has a visible bottom axis,
-        and all other plots have their bottom axis fully hidden.
-        """
-        if len(self.plot_items) == 0:
-            return
-
-        # Hide bottom axis on all but the bottom plot
-        for plot_item in self.plot_items[:-1]:
-            plot_item.showAxis("bottom", show=False)
-            ax = plot_item.getAxis("bottom")
-            # Remove any ticks or values
-            ax.setStyle(showValues=False)
-            ax.setTicks([])
-            # Remove axis line
-            ax.setPen(None)
-            # Remove label
-            plot_item.setLabel('bottom', "")
-
-        # Show bottom axis on the bottom plot
-        bottom_plot = self.plot_items[-1]
-        bottom_plot.showAxis("bottom", show=True)
-        ax = bottom_plot.getAxis("bottom")
-        # Show values on the bottom plot
-        ax.setStyle(showValues=True)
-        # You can customize ticks if necessary, or leave defaults
-        bottom_plot.setLabel('bottom', text=self.x_combo.currentText())
-
-    def change_line_color(self, y_col):
-        # Open color dialog and change line color
-        new_color = QColorDialog.getColor(initial=self.line_colors[y_col], parent=self)
-        if new_color.isValid():
-            self.line_colors[y_col] = new_color
-            data_item = self.plot_data_items[y_col]['data_item']
-            data_item.setPen(pg.mkPen(color=new_color, width=self.thickness_slider.value()))
-            self.refresh_y_list()
-
-
-    def refresh_y_list(self):
-        # Rebuilds the sidebar list without reprocessing plots
-        for i in reversed(range(self.y_list_layout.count())):
-            item = self.y_list_layout.takeAt(i)
-            w = item.widget()
-            if w:
-                w.deleteLater()
-
-        y_columns = list(self.plot_data_items.keys())
-        for y_col in y_columns:
-            h_layout = QHBoxLayout()
-            label = QLabel(y_col)
-            color_btn = QPushButton()
-            color_btn.setFixedSize(20,20)
-            c = self.line_colors[y_col]
-            color_btn.setStyleSheet(f"background-color: {c.name()}; border: 1px solid black;")
-            color_btn.clicked.connect(lambda ch, yc=y_col: self.change_line_color(yc))
-
-            h_layout.addWidget(color_btn)
-            h_layout.addWidget(label)
-            container = QWidget()
-            container.setLayout(h_layout)
-            self.y_list_layout.addWidget(container)
-
-
+            print("Not able to plot")
 
     def get_info(self):
         """Returns a dictionary containing the state of the GraphModule."""
         return {
             'type': 'GraphModule',
             'x_axis': self.x_combo.currentText(),
-            'y_axis': self.y_combo.currentData(),  # Use currentData() to get selected items
+            'y_axis': self.y_combo.currentText(),  # Use currentData() to get selected items
             'color': self.pen.color().name(),
             'thickness': self.pen.width(),
             'queue_size': self.queue_size_slider.value(),
@@ -545,13 +397,13 @@ class GraphModule(QMainWindow):
                 print(f"Warning: X axis '{info['x_axis']}' not found in combo box.")
 
         if 'y_axis' in info:
-            # Set the check state of items
-            for i in range(self.y_combo.model().rowCount()):
-                item = self.y_combo.model().item(i)
-                if item.data() in info['y_axis'] or item.text() in info['y_axis']:
-                    item.setCheckState(Qt.Checked)
-                else:
-                    item.setCheckState(Qt.Unchecked)
+            index = self.y_combo.findText(info['y_axis'])
+            if index >= 0:
+                self.y_combo.setCurrentIndex(index)
+            else:
+                print(f"Warning: Y axis '{info['y_axis']}' not found in combo box.")
+            # Update the display text
+            #self.y_combo.updateText()
         if 'color' in info:
             color = QColor(info['color'])
             self.pen.setColor(color)
@@ -564,7 +416,6 @@ class GraphModule(QMainWindow):
             self.checkbox.setChecked(info['crosshair_enabled'])
         if 'gvg_enabled' in info:
             self.checkbox_gg.setChecked(info['gvg_enabled'])
-
 
 
 
