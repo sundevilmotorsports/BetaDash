@@ -225,7 +225,7 @@ class CustomDashboard(QMainWindow):
         self.toolbar.addWidget(self.write_sql_button)
 
         self.toolbar.addWidget(self.save_dashboard_button)
-        self.toolbar.addWidget(self.load_session_button)
+        self.toolbar.addWidget(self.select_session_button)
         self.toolbar.addWidget(self.select_session_button)
         self.toolbar.addStretch(1)
         self.toolbar.addWidget(self.refresh_rate_label)

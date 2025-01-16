@@ -344,45 +344,6 @@ class GraphModule(QMainWindow):
         y_columns = list(self.plot_data_items.keys())
         queue_size = self.queue_size_slider.value()
         self.queue_size_label.setText(f"Queue Size: {queue_size}")
-        
-        if x_column in new_data and y_column in new_data:
-            try:
-                x_values = np.asarray(new_data[x_column]).flatten()
-                y_values = np.asarray(new_data[y_column]).flatten()
-                #self.plot_widget.clear()
-                x_values = x_values[-queue_size:]
-                y_values = y_values[-queue_size:]
-                if x_values[-1] >= self.x_axis_offset+self.end_offset - 10000000000: ## using temporarily, wanted graph to always plot, testing ranges
-                    self.end_offset = x_values[-1]
-                    self.plot_widget.clear()
-                    if self.crosshair_enable:
-                        self.removeCrosshair()
-                        self.initCrosshair()   
-                    self.plot_widget.plot(x=x_values, y=y_values, pen=self.pen)
-                    ## Setting Ranges
-                    if self.gg_enable:
-                        self.plot_widget.setXRange(-100, 100)
-                        self.plot_widget.setYRange(-100, 100)
-                    else:
-                        #self.plot_widget.setXRange(max(0, x_values[-1]-self.queue_size_slider.value), x_values[-1]+self.x_axis_offset)
-                        y_range = max(y_values) - min(y_values)
-                        #self.plot_widget.setYRange(min(y_values) - y_range * .05, max(y_values) + y_range * .05)
-                    self.graph_point_count+=1
-                    if self.crosshair_enable:
-                        self.crosshair_h.setPos(self.last_mouse_position[1])
-                        self.crosshair_v.setPos(self.last_mouse_position[0])
-                        for event_marker in self.event_markers:
-                            self.plot_widget.addItem(event_marker[0])
-                            event_marker[0].setPos(event_marker[1])
-                else:
-                    if self.gg_enable:
-                        self.plot_widget.setXRange(0, 1)
-                        self.plot_widget.setYRange(0, 1)
-                    self.plot_widget.plot().setData(x=x_values, y=y_values, pen=self.pen)
-                    self.graph_point_count+=1
-
-            except Exception as e:
-                print(e)
 
         if x_column not in new_data:
             print(f"X column '{x_column}' not found in data")
