@@ -50,11 +50,8 @@ class CustomDashboard(QMainWindow):
         self.graph_modules = []
         self.video_modules = []
 
-        def __init__(self):
-            # ...
-            self.new_session_data = {"pos": [], "size": [], "metadata": []}
-            self.current_tab_index = 0
-            # ...
+        self.new_session_data = {"pos": [], "size": [], "metadata": []}
+        self.current_tab_index = 0
 
         # Create sessions and data folders if not present
         os.makedirs("sessions", exist_ok=True)
@@ -186,14 +183,6 @@ class CustomDashboard(QMainWindow):
         self.save_dashboard_button.setMaximumWidth(200)
         self.save_dashboard_button.clicked.connect(self.save_dashboard)
 
-        self.select_session_button = QComboBox()
-        self.select_session_button.setMaximumWidth(200)
-        # Populate drop down window with available session objects
-        for session in self.sessions:
-            self.select_session_button.addItem(
-                session["time"].strftime("%m/%d/%Y, %H:%M:%S")
-            )
-
         # Add tab widget below toolbar
         self.layout.addWidget(self.tab_widget)
 
@@ -205,12 +194,6 @@ class CustomDashboard(QMainWindow):
         for session in self.sessions:
             session_name = session["time"].strftime("%m/%d/%Y, %H:%M:%S")
             self.tab_widget.addTab(QWidget(), session_name)
-
-
-        # Add buttons to the toolbar
-            self.select_session_button.addItem(
-                session["time"].strftime("%m/%d/%Y, %H:%M:%S")
-            )
 
         self.refresh_rate_label = QLabel("Hertz: ")
         self.refresh_rate_label.setStyleSheet("background-color: #455364;")
@@ -225,8 +208,6 @@ class CustomDashboard(QMainWindow):
         self.toolbar.addWidget(self.write_sql_button)
 
         self.toolbar.addWidget(self.save_dashboard_button)
-        self.toolbar.addWidget(self.select_session_button)
-        self.toolbar.addWidget(self.select_session_button)
         self.toolbar.addStretch(1)
         self.toolbar.addWidget(self.refresh_rate_label)
         self.layout.addWidget(self.mdi_area)
@@ -286,6 +267,15 @@ class CustomDashboard(QMainWindow):
                 report_card = ReportModule(self.serialmonitor)
                 report_card.set_info(metadata)
                 sub_window.setWidget(report_card)
+            elif window_type == 'LabelModule':
+                sub_window = QMdiSubWindow()
+                sub_window.setAttribute(Qt.WA_DeleteOnClose)
+                # Suppose you saved 'data_type' in get_info() for LabelModule
+                data_type = metadata.get('data_type', "Timestamp (s)")
+                
+                label_module = LabelModule(self.serialmonitor, data_type)
+                # label_module.set_info(metadata) if you have a set_info() method
+                sub_window.setWidget(label_module)
             else:
                 continue
 
