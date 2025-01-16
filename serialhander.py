@@ -7,6 +7,7 @@ from collections import deque
 import polars as pl
 from serial import SerialException
 import sqlite3
+import binascii
 
 class SerialHandler(QObject):
     data_changed = pyqtSignal(dict)
@@ -24,6 +25,8 @@ class SerialHandler(QObject):
         self.sample_rate : int = samplerate ## Hz
         self.buffer_time : float = buffertime ## seconds
         self.last_read_time : float = time.time() ## used for measure buffer
+        self.start_time = time.time()
+        self.last_time = self.start_time
         self.data_queue : dict[str, deque[float]] = {}
         self.data : dict[str, list[float]] = {
             "Timestamp (s)": [],
@@ -59,7 +62,8 @@ class SerialHandler(QObject):
             "Front Left Shock Pot (mm)": [],
             "Back Right Shock Pot (mm)": [],
             "Back Left Shock Pot (mm)": [],
-            "Lap Counter": []
+            "Lap Counter": [],
+            "Refresh Rate": []
         }
         self.temp_data : dict[str, float]= {
             "Timestamp (s)": 0,
@@ -95,12 +99,13 @@ class SerialHandler(QObject):
             "Front Left Shock Pot (mm)": 0,
             "Back Right Shock Pot (mm)": 0,
             "Back Left Shock Pot (mm)": 0,
-            "Lap Counter": 0
+            "Lap Counter": 0,
+            "Refresh Rate": 0
             }
         #self.data = pl.DataFrame({col: pl.Series([], pl.Int64) for col in self.columns})
         
         for column_name in self.data.keys():
-            self.data_queue[column_name] = deque(maxlen=200)
+            self.data_queue[column_name] = deque(maxlen=300)
     
     def set_sample_rate(self, rate):
         self.sample_rate = rate
@@ -128,13 +133,15 @@ class SerialHandler(QObject):
             #print("data changed emitted")
 
     def _read_data(self) -> None: 
+        mode = None
+        hertz_count = 0
+        hertz_rate_sum = 0
+        hertz_rolling_average = 0
         if self.serial_port == "null":
-            print("Testing handler is reading")
-            count = 0
+            #print("Testing handler is reading")
             while self.is_reading:
                 self.clear_temp_data()
-                self.temp_data["Timestamp (s)"] = count
-                count = count+1
+                self.temp_data["Timestamp (s)"] = time.time() - self.start_time
                 self.temp_data["X Acceleration (mG)"] = random.random()
                 self.temp_data["Y Acceleration (mG)"]= random.random() 
                 self.temp_data["Z Acceleration (mG)"]= random.random()    
@@ -168,8 +175,15 @@ class SerialHandler(QObject):
                 self.temp_data["Back Right Shock Pot (mm)"] = (random.random() - .5) * 2
                 self.temp_data["Back Left Shock Pot (mm)"] = (random.random() - .5) * 2
                 self.temp_data["Lap Counter"] = random.random()  
-                #print("temp_data updated")
-                time.sleep(.1)
+                time.sleep(.1) ## Controls Fake Data Refresh Rate
+                current_time = time.time()
+                hertz_rate = 1 / (current_time - self.last_time)
+                #print(f"Update rate: {hertz_rate:.2f} Hz")
+                hertz_count += 1
+                hertz_rate_sum += hertz_rate
+                self.temp_data["Refresh Rate"] = hertz_rate_sum / hertz_count
+                self.last_time = current_time
+                ### Last things last
                 self.update_data(self.temp_data, self.last_read_time)
         else:
             count = 0
@@ -179,11 +193,13 @@ class SerialHandler(QObject):
                 try:
                     line = self.serial.readline().decode().strip()
                     print(line)
-                    #This is formatted that the while 
-                    mode = int(line[0])
-                    data = line.split(',')
-                    data = [float(value) for value in data]
-                    #print(data)
+                    try:
+                        mode = int(line[0])
+                        data = line.split(',')
+                        data = [float(value) for value in data]
+                        print(data)
+                    except Exception as e:
+                        print("Error in decoding : ", str(e))
                     match(mode):
                         case 0:
                             self.temp_data["Timestamp (s)"] = data[1]
@@ -219,8 +235,8 @@ class SerialHandler(QObject):
                             self.temp_data["Front Left Shock Pot (mm)"] = data[31]
                             self.temp_data["Back Right Shock Pot (mm)"] = data[32]
                             self.temp_data["Back Left Shock Pot (mm)"] = data[33]
-                            self.temp_data["Lap Counter"] = data[34]
-                            break
+                            #self.temp_data["Lap Counter"] = data[34]
+                            #print("no error")
                         case 1:
                             self.temp_data["Timestamp (s)"] = data[1]
                             self.temp_data["X Acceleration (mG)"] = data[2]
@@ -286,30 +302,17 @@ class SerialHandler(QObject):
                             self.temp_data["Rear Brake Pressure (BAR)"] = data[12]
                         case _:
                             print("SERIALHANDLER IS FAILING ON ALL PROPORTIONS")
-                    # Updates based on mode should be complete
-                    #print(self.temp_data)
+                    current_time = time.time()
+                    hertz_rate = 1 / (current_time - self.last_time)
+                    #print(f"Update rate: {hertz_rate:.2f} Hz")
+                    if hertz_rate < 50:
+                        hertz_count += 1
+                        hertz_rate_sum += hertz_rate
+                        hertz_rolling_average = hertz_rate_sum / hertz_count
+                    self.temp_data["Refresh Rate"] = hertz_rolling_average
+                    self.last_time = current_time
+                    ### Last Things last
                     self.update_data(self.temp_data, self.last_read_time)
-
-                        
-                    '''
-                    if (line == "" or "IMU READ:" in line or "WHEEL READ:" in line or "DATALOGREAD:" in line):
-                        pass
-                    else:
-                        try:
-                            key, value = line.split(":")
-                        except ValueError:
-                            print("Error: Line does not contain expected key-value pair:", line)
-                            continue 
-
-                        print("Key: " + key + ", value" + value)
-                        try:
-                            self.temp_data[str(key.strip())] = float(value.strip())
-                        except Exception as e:
-                            print("Error thrown in serialhandler reading from serial", str(e))
-                        #self.last_read_time = time.time()
-                        self.update_data(self.temp_data, self.last_read_time)
-                        #print("update_data called", " lastreadtime: ", self.last_read_time)
-                        '''
                 except Exception as e:
                     print("Error in reading line from serial: ", str(e))
 
@@ -363,7 +366,8 @@ class SerialHandler(QObject):
             "Front Left Shock Pot (mm)": 0,
             "Back Right Shock Pot (mm)": 0,
             "Back Left Shock Pot (mm)": 0,
-            "Lap Counter": 0
+            "Lap Counter": 0,
+            "Refresh Rate": 0
             }
 
     def clear_data(self):
@@ -401,7 +405,8 @@ class SerialHandler(QObject):
             "Front Left Shock Pot (mm)": [],
             "Back Right Shock Pot (mm)": [],
             "Back Left Shock Pot (mm)": [],
-            "Lap Counter": []
+            "Lap Counter": [],
+            "Refresh Rate": []
         }
         
     def insert_data_to_db(self, db_name : str):
