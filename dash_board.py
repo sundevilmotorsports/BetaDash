@@ -146,7 +146,7 @@ class CustomDashboard(QMainWindow):
 
         # Replace the combo box and load session button with a QTabWidget
         self.tab_widget = QTabWidget()
-        self.tab_widget.setMaximumWidth(400)
+        self.tab_widget.setMaximumWidth(1200)
         self.tab_widget.setTabsClosable(True)
         self.tab_widget.tabCloseRequested.connect(self.close_session_tab)
         self.tab_widget.currentChanged.connect(self.load_session_from_tab)
