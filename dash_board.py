@@ -17,7 +17,8 @@ from PyQt5.QtWidgets import (
     QRadioButton,
     QDockWidget,
     QTabWidget,
-    QDialog
+    QDialog,
+    QToolButton
 )
 import os
 from PyQt5.QtGui import QIcon
@@ -40,6 +41,8 @@ import sqlite3
 import qdarkstyle
 from qdarkstyle.dark.palette import DarkPalette  # noqa: E402
 from qdarkstyle.light.palette import LightPalette  # noqa: E402
+from PyQt5.QtWidgets import QSizePolicy
+import shutil
 
 class CustomDashboard(QMainWindow):
     def __init__(self):
@@ -57,11 +60,25 @@ class CustomDashboard(QMainWindow):
         os.makedirs("sessions", exist_ok=True)
         os.makedirs("data", exist_ok=True)
 
+        # Clean up and recreate a 'temp' folder
+        temp_dir = os.path.join("sessions", "temp")
+        shutil.rmtree(temp_dir, ignore_errors=True)  # remove old temp folder entirely
+        os.makedirs(temp_dir, exist_ok=True)
+        
+        # Now read only the *real* session files from sessions/*.pkl,
+        # ignoring any in sessions/temp/
         sessions = glob.glob("sessions/*.pkl")
-        data_files = glob.glob("data/*.pkl")
+        # Filter out anything in 'temp' subdirectory
+        sessions = [f for f in sessions if "temp" not in f]
+        
+        self.sessions = []
         for file in sessions:
             session = pickle.load(open(file, "rb"))
+            # Each original session file can remain in "filename" if you want
+            session["filename"] = file
             self.sessions.append(session)
+
+        # After loading sessions from disk, check if none exist
 
 
         # If you have a 'handler' variable referenced, make sure it's defined or remove this block
@@ -72,11 +89,11 @@ class CustomDashboard(QMainWindow):
         #     handler.add_session(data)
 
         self.setWindowTitle("Sun Devil Motorsports Beta Data Dashboard")
-        self.setStyleSheet("""QMainWindow::title {
-                                color: purple;
-                                background-color: #2D2D2D;
-                                font-size: 30px;
-                            }""")
+        # self.setStyleSheet("""QMainWindow::title {
+        #                         color: purple;
+        #                         background-color: #2D2D2D;
+        #                         font-size: 30px;
+        #                     }""")
         self.setWindowIcon(QIcon("resources/90129757.jpg"))
         self.setGeometry(100, 100, 1800, 900)
         self.mdi_area = QMdiArea()
@@ -85,9 +102,10 @@ class CustomDashboard(QMainWindow):
         self.mdi_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.mdi_area.setTabsClosable(True)
 
-        self.layout = QVBoxLayout()
+        self.layout = QVBoxLayout()     
         self.toolbar = QHBoxLayout()
         self.layout.addLayout(self.toolbar)
+
 
         # Attempt to connect to a serial port
         try:
@@ -175,20 +193,45 @@ class CustomDashboard(QMainWindow):
 
         # Replace the combo box and load session button with a QTabWidget
         self.tab_widget = QTabWidget()
-        self.tab_widget.setMaximumWidth(1200)
+        # Example: remove the border/pane line in a QTabWidget
+        self.tab_widget.setStyleSheet("""
+            QTabWidget::pane {
+                /* Remove the pane (the area behind the tab bar) border */
+                border: none;
+                margin: 0px;
+                padding: 0px;
+            }
+            QTabBar::tab {
+                /* If you also want to remove the tab's borders (optional): */
+                border: none;
+                /* adjust the padding if needed */
+                padding: 2px;
+            }
+        """)
+
+
+        #self.tab_widget.setMaximumWidth(QMdiArea.width)
         self.tab_widget.setTabsClosable(True)
+        self.tab_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.tab_widget.tabCloseRequested.connect(self.close_session_tab)
-        self.tab_widget.currentChanged.connect(self.load_session_from_tab)
+        #self.tab_widget.currentChanged.connect(self.load_session_from_tab)
+        self.tab_widget.currentChanged.connect(self.on_tab_changed)
         self.save_dashboard_button = QPushButton("Save Dashboard")
         self.save_dashboard_button.setMaximumWidth(200)
         self.save_dashboard_button.clicked.connect(self.save_dashboard)
 
+        self.plus_button = QToolButton()
+        self.plus_button.setText("+")
+        # Place the button in the top-right corner of the tab bar
+        self.tab_widget.setCornerWidget(self.plus_button, Qt.TopRightCorner)
+
+        # Connect its clicked signal to the same "create_new_session" method
+        self.plus_button.clicked.connect(self.create_new_session)
+
+
         # Add tab widget below toolbar
         self.layout.addWidget(self.tab_widget)
 
-
-        # Start with a "New Session" tab
-        self.tab_widget.addTab(QWidget(), "New Session")
 
         # Add tabs for previously saved sessions
         for session in self.sessions:
@@ -219,34 +262,125 @@ class CustomDashboard(QMainWindow):
         self.connection = None
         self.db_name = None
 
-    def load_session_from_tab(self, index):
-        # If the "New Session" tab is selected (index 0), clear the workspace
-        if index == 0:
-            # Remove all subwindows to ensure a blank workspace
-            for window in self.mdi_area.subWindowList():
-                window.close()
-            return
+        if not self.sessions:
+            self.create_new_session()
 
-        # If index corresponds to a saved session, load that session
-        if index > len(self.sessions):
-            # Invalid index, do nothing
-            return
 
-        active_session = self.sessions[index - 1]  # since index 0 is "New Session"
-        tab_amt = len(active_session["pos"])
-        print("Loading session from tab:", active_session)
+    def create_new_session(self):
+        """
+        Create a brand-new in-memory session, store it in sessions/temp/,
+        and add a new tab for it.
+        """
+        new_session = {
+            "pos": [],
+            "size": [],
+            "metadata": [],
+            "time": datetime.now(),
+        }
+        # Generate a temp filename
+        current_time = new_session["time"].strftime('%m-%d-%Y_%H_%M_%S')
+        filename = f"sessions/temp/{current_time}.pkl"
+        new_session["filename"] = filename
 
-        # Remove existing subwindows
+        # Write an empty session file right away (optional but keeps logic consistent)
+        with open(filename, "wb") as f:
+            pickle.dump(new_session, f)
+
+        # Add to self.sessions list
+        self.sessions.append(new_session)
+        
+        # Create a new tab in the QTabWidget
+        tab_label = new_session["time"].strftime("%m/%d/%Y, %H:%M:%S")
+        self.tab_widget.addTab(QWidget(), tab_label)
+
+        # Switch to the newly added tab
+        new_index = self.tab_widget.count() - 1
+        self.tab_widget.setCurrentIndex(new_index)
+
+    def on_tab_changed(self, new_index):
+        old_index = self.current_tab_index
+
+        # Save the old session
+        if old_index != -1 and old_index < len(self.sessions) and old_index != new_index:
+            self.save_session_data(old_index)
+
+        # Clear subwindows
         for window in self.mdi_area.subWindowList():
             window.close()
 
-        # Recreate subwindows for this saved session
+        if new_index == -1:
+            # Means there are no tabs at all, do nothing
+            self.current_tab_index = -1
+            return
+
+        self.load_session_from_tab(new_index)
+        self.current_tab_index = new_index
+
+    def save_session_data(self, index):
+        """
+        Saves the subwindows of the MDI area into self.sessions[index-1],
+        and pickles that to the existing .pkl file on disk.
+        """
+        if index < 0 or index >= len(self.sessions):
+            return  # Out of range guard
+        
+        session_data = self.sessions[index]
+        
+        # Overwrite these fields with the current subwindows
+        session_data["pos"].clear()
+        session_data["size"].clear()
+        session_data["metadata"].clear()
+
+        # Gather subwindows
+        for sub_window in self.mdi_area.subWindowList():
+            pos = sub_window.pos()
+            size = sub_window.size()
+            widget = sub_window.widget()
+
+            session_data["pos"].append((pos.x(), pos.y()))
+            session_data["size"].append((size.width(), size.height()))
+            
+            # widget.get_info() must return a dict that at least has {"type": ...}
+            session_data["metadata"].append(widget.get_info())
+
+        # Optionally store a "time" or keep the original time.
+        # session_data["time"] = datetime.now()
+        
+        # Now we must figure out which file it was originally loaded from 
+        # (or create a new one). Suppose we keep a "filename" key in session_data:
+        if "filename" in session_data:
+            filename = session_data["filename"]
+        else:
+            # If for some reason it was never assigned, generate a new file
+            # Or skip saving if you prefer
+            current_time = session_data["time"].strftime('%m-%d-%Y_%H_%M_%S')
+            filename = f"sessions/{current_time}.pkl"
+            session_data["filename"] = filename
+
+        # Write to .pkl
+        pickle.dump(session_data, open(filename, "wb"))
+
+    def load_session_from_tab(self, index):
+        if index < 0 or index >= len(self.sessions):
+            # Invalid index, do nothing
+            return
+
+        # Find the session that corresponds to this tab
+        active_session = self.sessions[index]
+        
+        # Clear subwindows
+        for window in self.mdi_area.subWindowList():
+            window.close()
+
+        print("Loading session:", active_session)
+        tab_amt = len(active_session["pos"])
+
+        # Recreate subwindows for this session
         for i in range(tab_amt):
             metadata = active_session["metadata"][i]
             window_type = metadata.get('type', 'Unknown')
             pos = active_session["pos"][i]
             size = active_session["size"][i]
-            print(f"Restoring window {i}: type={window_type}, Position={pos}, Size={size}, Metadata={metadata}")
 
             if window_type == 'GraphModule':
                 sub_window = QMdiSubWindow()
@@ -254,29 +388,27 @@ class CustomDashboard(QMainWindow):
                 graph_module = GraphModule(self.serialmonitor)
                 graph_module.set_info(metadata)
                 sub_window.setWidget(graph_module)
-                QTimer.singleShot(0, lambda gm=graph_module, md=metadata: gm.set_info(md))
             elif window_type == 'WheelViz':
                 sub_window = QMdiSubWindow()
                 sub_window.setAttribute(Qt.WA_DeleteOnClose)
                 wheel_viz = WheelViz(self.serialmonitor)
                 wheel_viz.set_info(metadata)
                 sub_window.setWidget(wheel_viz)
+
             elif window_type == 'ReportModule':
                 sub_window = QMdiSubWindow()
                 sub_window.setAttribute(Qt.WA_DeleteOnClose)
-                report_card = ReportModule(self.serialmonitor)
-                report_card.set_info(metadata)
-                sub_window.setWidget(report_card)
+                report_module = ReportModule(self.serialmonitor)
+                report_module.set_info(metadata)
+                sub_window.setWidget(report_module)
             elif window_type == 'LabelModule':
                 sub_window = QMdiSubWindow()
                 sub_window.setAttribute(Qt.WA_DeleteOnClose)
-                # Suppose you saved 'data_type' in get_info() for LabelModule
                 data_type = metadata.get('data_type', "Timestamp (s)")
-                
                 label_module = LabelModule(self.serialmonitor, data_type)
-                # label_module.set_info(metadata) if you have a set_info() method
                 sub_window.setWidget(label_module)
             else:
+                # Unknown type, skip
                 continue
 
             self.mdi_area.addSubWindow(sub_window)
@@ -285,12 +417,25 @@ class CustomDashboard(QMainWindow):
             sub_window.show()
 
     def close_session_tab(self, index):
-        # Prevent closing the "New Session" tab (index 0)
-        if index == 0:
-            return
+        # 1) Save that tab’s session data
+        self.save_session_data(index)
+
+        # 2) Remove the tab from the tab widget
         self.tab_widget.removeTab(index)
-        # Optionally remove session data if desired
-        # del self.sessions[index - 1]
+
+        # 3) Remove the corresponding session object from memory if desired
+        if 0 <= index < len(self.sessions):
+            del self.sessions[index]
+
+        # 4) If no tabs remain, automatically create a new session/tab
+        if self.tab_widget.count() == 0:
+            self.create_new_session()
+
+        # 5) Adjust current_tab_index if needed
+        if index == self.current_tab_index:
+            self.current_tab_index = -1
+
+
     def update_refresh_rate(self, update_data):
         rate = update_data["Refresh Rate"][-1]
         self.refresh_rate_label.setText(f"{rate:.1f}" + " Hz")
@@ -323,7 +468,7 @@ class CustomDashboard(QMainWindow):
             selected_data_type, value = dialog.return_selected()
             sub_window = QMdiSubWindow()
             label_module = LabelModule(self.serialmonitor, selected_data_type)
-            #sub_window.setAttribute(Qt.WA_DeleteOnClose)
+            sub_window.setAttribute(Qt.WA_DeleteOnClose)
             sub_window.setWidget(label_module)
             sub_window.setGeometry(label_module.geometry())
             self.mdi_area.addSubWindow(sub_window)
@@ -406,77 +551,28 @@ class CustomDashboard(QMainWindow):
             self.write_sql_button.setDisabled(True)
 
     def save_dashboard(self):
-        data = {
-            "pos": [],
-            "size": [],
-            "metadata": [],
-            "time": datetime.now(),
-        }
-        for tab in self.mdi_area.subWindowList():
-            widget = tab.widget()
-            pos = tab.pos()
-            size = tab.size()
-            print(f"Saving subwindow: {widget}, Position: {pos}, Size: {size}")
-            data["pos"].append((tab.pos().x(), tab.pos().y()))
-            data["size"].append((tab.size().width(), tab.size().height()))
-            data["metadata"].append(tab.widget().get_info())
+        """
+        1) Save all current open tabs one last time into temp folder
+        2) Move each session's .pkl from sessions/temp/ to sessions/
+        3) Optionally re-load or rename them so they remain consistent
+        """
+        # First, save whichever session is currently open
+        current_idx = self.tab_widget.currentIndex()
+        if current_idx != -1:
+            self.save_session_data(current_idx)
 
-        filename = f"sessions/{data['time'].strftime('%m-%d-%Y, %H_%M_%S')}.pkl"
-        pickle.dump(data, open(filename, "wb"))
-        session_name = data["time"].strftime("%m/%d/%Y, %H:%M:%S")
-        self.sessions.append(data)
+        # Move each session whose file is still in sessions/temp/
+        for session in self.sessions:
+            temp_file = session["filename"]
+            if "sessions/temp/" in temp_file.replace("\\","/"):  # handle windows backslashes
+                base_name = os.path.basename(temp_file)
+                final_path = os.path.join("sessions", base_name)
+                # Move the file
+                shutil.move(temp_file, final_path)
+                # Update the stored filename to the new location
+                session["filename"] = final_path
 
-
-        self.tab_widget.addTab(QWidget(), session_name)
-        self.tab_widget.setCurrentIndex(self.tab_widget.count() - 1)
-
-    '''
-
-    def update_session(self):
-        index = self.select_session_button.currentIndex()
-        if index < 0 or index >= len(self.sessions):
-            return
-        active_session = self.sessions[index]
-        tab_amt = len(active_session["pos"])
-        print(active_session)
-        # Remove existing subwindows
-        for window in self.mdi_area.subWindowList():
-            window.close()
-        # Recreate subwindows
-        for i in range(tab_amt):
-            metadata = active_session["metadata"][i]
-            window_type = metadata.get('type', 'Unknown')
-            pos = active_session["pos"][i]
-            size = active_session["size"][i]
-            print(f"Restoring window {i}: type={window_type}, Position={pos}, Size={size}, Metadata={metadata}")
-            if window_type == 'GraphModule':
-                sub_window = QMdiSubWindow()
-                sub_window.setAttribute(Qt.WA_DeleteOnClose)
-                graph_module = GraphModule(self.serialmonitor)
-                graph_module.set_info(metadata)
-                sub_window.setWidget(graph_module)
-                QTimer.singleShot(0, lambda gm=graph_module, md=metadata: gm.set_info(md))
-            elif window_type == 'WheelViz':
-                sub_window = QMdiSubWindow()
-                sub_window.setAttribute(Qt.WA_DeleteOnClose)
-                wheel_viz = WheelViz(self.serialmonitor)
-                wheel_viz.set_info(metadata)
-                sub_window.setWidget(wheel_viz)
-            elif window_type == 'ReportModule':
-                sub_window = QMdiSubWindow()
-                sub_window.setAttribute(Qt.WA_DeleteOnClose)
-                report_card = ReportModule(self.serialmonitor)
-                report_card.set_info(metadata)
-                sub_window.setWidget(report_card)
-            else:
-                continue
-            self.mdi_area.addSubWindow(sub_window)
-            sub_window.move(pos[0], pos[1])
-            sub_window.resize(size[0], size[1])
-            sub_window.show()
-
-    '''
-
+        print("All temp sessions were moved into sessions/ folder.")
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

@@ -10,6 +10,7 @@ from PyQt5.QtWidgets import (
     QCheckBox,
     QSlider,
     QColorDialog,
+    QScrollArea
 )
 from PyQt5.QtCore import Qt, pyqtSlot, QPointF
 from PyQt5.QtGui import QColor, QPen, QFont, QPalette
@@ -89,23 +90,32 @@ class GraphModule(QMainWindow):
         self.selected_x = None
 
         self.y_list_layout = QVBoxLayout()
-        self.y_list_layout.setSpacing(2)  # Reduce vertical spacing
+        self.y_list_layout.setSpacing(0)  # Reduce vertical spacing
         self.y_list_layout.setContentsMargins(0, 0, 0, 0)  # Remove margins
-        self.sidebox.addLayout(self.y_list_layout)
+        
+        # 2) Create a QWidget to serve as a container for the legend layout
+        self.legend_widget = QWidget()
+        self.legend_widget.setLayout(self.y_list_layout)
+
+        # 3) Create a QScrollArea to hold that container widget
+        self.legend_scroll = QScrollArea()
+        self.legend_scroll.setWidgetResizable(True)
+        self.legend_scroll.setWidget(self.legend_widget)
+
+        # 4) Now add the QScrollArea to sidebox
+        #    (instead of adding self.y_list_layout directly)
+        self.legend_scroll.setFixedWidth(200)   # or any width you want
+        # or 
+        self.legend_scroll.setMaximumHeight(300)
+
+        self.sidebox.addWidget(self.legend_scroll)
+
 
         self.sidebox.addWidget(QLabel("Select X Axis Column:"))
         self.sidebox.addWidget(self.x_combo)
         self.sidebox.addWidget(QLabel("Select Y Axis Column:"))
         self.sidebox.addWidget(self.y_combo)
         self.sidebox.addLayout(self.trim_container)
-
-        # Thickness slider
-        self.thickness_slider = QSlider(Qt.Horizontal)
-        self.thickness_slider.setRange(1, 10)  # Thickness range
-        self.thickness_slider.setValue(1)  # Default thickness
-        self.thickness_slider.valueChanged.connect(self.update_thickness)
-        self.sidebox.addWidget(QLabel("Graph Thickness:"))
-        self.sidebox.addWidget(self.thickness_slider)
 
         # Queue Size Slider
         self.queue_size_slider = QSlider(Qt.Horizontal)
@@ -187,9 +197,6 @@ class GraphModule(QMainWindow):
         color = QColorDialog.getColor()
         if color.isValid(): 
             self.pen.setColor(color)
-
-    def update_thickness(self, value):
-        self.pen.setWidth(value)
         
     def initCrosshair(self):
         if self.crosshair_enable:
@@ -454,6 +461,7 @@ class GraphModule(QMainWindow):
 
         for y_col in y_columns:
             h_layout = QHBoxLayout()
+            h_layout.setSpacing(1)  # minimal space between button & label
             label = QLabel(y_col)
             color_btn = QPushButton()
             color_btn.setFixedSize(20,20)
@@ -503,7 +511,7 @@ class GraphModule(QMainWindow):
         if new_color.isValid():
             self.line_colors[y_col] = new_color
             data_item = self.plot_data_items[y_col]['data_item']
-            data_item.setPen(pg.mkPen(color=new_color, width=self.thickness_slider.value()))
+            data_item.setPen(pg.mkPen(color=new_color))
             self.refresh_y_list()
 
 
@@ -529,6 +537,7 @@ class GraphModule(QMainWindow):
             h_layout.addWidget(label)
             container = QWidget()
             container.setLayout(h_layout)
+            container.setContentsMargins(0, 0, 0, 0)
             self.y_list_layout.addWidget(container)
 
 
@@ -540,7 +549,6 @@ class GraphModule(QMainWindow):
             'x_axis': self.x_combo.currentText(),
             'y_axis': self.y_combo.currentData(),  # Use currentData() to get selected items
             'color': self.pen.color().name(),
-            'thickness': self.pen.width(),
             'queue_size': self.queue_size_slider.value(),
             'crosshair_enabled': self.crosshair_enable,
             'gvg_enabled': self.gg_enable,
@@ -567,9 +575,6 @@ class GraphModule(QMainWindow):
         if 'color' in info:
             color = QColor(info['color'])
             self.pen.setColor(color)
-        if 'thickness' in info:
-            self.pen.setWidth(info['thickness'])
-            self.thickness_slider.setValue(info['thickness'])
         if 'queue_size' in info:
             self.queue_size_slider.setValue(info['queue_size'])
         if 'crosshair_enabled' in info:
