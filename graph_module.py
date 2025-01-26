@@ -1,28 +1,18 @@
-from PyQt5.QtWidgets import (
-    QMainWindow,
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QLabel,
-    QComboBox,
-    QPushButton,
-    QStatusBar,
-    QCheckBox,
-    QSlider,
-    QColorDialog,
-    QScrollArea
-)
+from PyQt5.QtWidgets import *
 from PyQt5.QtCore import Qt, pyqtSlot, QPointF
 from PyQt5.QtGui import QColor, QPen, QFont, QPalette
 from pyqtgraph.Qt import QtCore
 from pyqtgraph.Qt import QtGui
 import pyqtgraph as pg
-from collapsible_module import Collapsible
-from pyqtgraph import PlotDataItem
 import time
 import numpy as np
+import re
 import serialhander as SerialHandler
+from collapsible_module import Collapsible
+from pyqtgraph import PlotDataItem
 from checkable_combo import CheckableComboBox
+from channel import MathChannelsDialog
+from sympy import symbols, sympify, lambdify
 
 class GraphModule(QMainWindow):
     def __init__(self, serialhander : SerialHandler):
@@ -30,23 +20,15 @@ class GraphModule(QMainWindow):
         self._cleanup_done = False
         self.setWindowTitle("Graph Module")
         self.setGeometry(100, 100, 1050, 600)
-        #self.menubar = self.menuBar()
-        #self.menubar.setStyleSheet(
-        #    "background-color: #333; color: white; font-size: 14px;"
-        #)
-        #self.menubar.setStyleSheet("QMenu::item:selected { background-color: #555; }")
-        #self.menubar.setStyleSheet("QMenu::item:pressed { background-color: #777; }")
-
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
 
         self.layout = QHBoxLayout(self.central_widget)
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.plot_widget = pg.GraphicsLayoutWidget()
-        self.plot_items = []
-        self.plot_data_items = {}   
-        self.line_colors = {}  # Store colors for each y_column
-        self.plot_order = []
+        self.plot_items = [] # {plot_item, data_item, y_column, line_color, math_ch, math_ch_str} FORMAT PAY ATTENTION
+
+        self.math_channels = []
 
         self.rainbow_colors = [
             QColor("#FF0000"),  # Red
@@ -58,11 +40,7 @@ class GraphModule(QMainWindow):
             QColor("#8B00FF")   # Violet
         ]
         self.color_index = 0
-
-        #self.plot_widget.setBackground(QColor('lightgray'))
         self.pen = pg.mkPen(color='red', width=1)
-        #self.plot_widget.enableAutoRange(pg.ViewBox.XAxis, enable=False)
-        #self.plot_widget.enableAutoRange(pg.ViewBox.YAxis, enable=False)
 
         self.serialhandler = serialhander
         self.serialhandler.data_changed.connect(self.update_graph)
@@ -70,8 +48,6 @@ class GraphModule(QMainWindow):
         self.layout.addWidget(self.plot_widget)
         self.sidebox = QVBoxLayout()
         self.sidebox2 = QVBoxLayout()
-
-        self.left = False
 
         self.sidebox.setAlignment(Qt.AlignTop)
         self.x_combo = QComboBox()
@@ -82,40 +58,27 @@ class GraphModule(QMainWindow):
         #self.x_combo.currentIndexChanged.connect(self.set_labels)
         #self.y_combo.currentIndexChanged.connect(self.set_labels)
 
-        trim_upper = QHBoxLayout()
-        trim_under = QHBoxLayout()
-        self.trim_container = QVBoxLayout()
-
         self.selected_y_columns = None
         self.selected_x = None
 
         self.y_list_layout = QVBoxLayout()
-        self.y_list_layout.setSpacing(0)  # Reduce vertical spacing
-        self.y_list_layout.setContentsMargins(0, 0, 0, 0)  # Remove margins
-        
-        # 2) Create a QWidget to serve as a container for the legend layout
-        self.legend_widget = QWidget()
-        self.legend_widget.setLayout(self.y_list_layout)
+        self.y_list_layout.setSpacing(2)
+        self.y_list_layout.setContentsMargins(0, 0, 0, 0)
+        self.sidebox.addLayout(self.y_list_layout)
 
-        # 3) Create a QScrollArea to hold that container widget
-        self.legend_scroll = QScrollArea()
-        self.legend_scroll.setWidgetResizable(True)
-        self.legend_scroll.setWidget(self.legend_widget)
-
-        # 4) Now add the QScrollArea to sidebox
-        #    (instead of adding self.y_list_layout directly)
-        self.legend_scroll.setFixedWidth(200)   # or any width you want
-        # or 
-        self.legend_scroll.setMaximumHeight(300)
-
-        self.sidebox.addWidget(self.legend_scroll)
-
+         # Math Channel
+        self.math_channel_button = QPushButton("Select Math CHs")
+        self.math_channel_button.clicked.connect(self.open_math_channel)
+        self.math_channel_layout = QHBoxLayout()
+        self.math_channel_layout.addWidget(self.math_channel_button)
+        self.math_channel_layout.setContentsMargins(0, 0, 0, 0)
+        self.math_channel_layout.setStretch(1, 1)
 
         self.sidebox.addWidget(QLabel("Select X Axis Column:"))
         self.sidebox.addWidget(self.x_combo)
         self.sidebox.addWidget(QLabel("Select Y Axis Column:"))
         self.sidebox.addWidget(self.y_combo)
-        self.sidebox.addLayout(self.trim_container)
+        self.sidebox.addLayout(self.math_channel_layout)
 
         # Queue Size Slider
         self.queue_size_slider = QSlider(Qt.Horizontal)
@@ -133,11 +96,6 @@ class GraphModule(QMainWindow):
         self.sideBoxLayout.addLayout(self.sidebox)
         self.sideBoxLayout.addLayout(self.sidebox2)
         
-        #self.layout.addLayout(self.sidebox)
-
-        #self.reset_button = QPushButton("Reset")
-        #self.reset_button.clicked.connect(self.reset)
-
         collapsible_container = Collapsible()
         collapsible_container.setContentLayout(self.sideBoxLayout)
         self.layout.addWidget(collapsible_container)
@@ -173,8 +131,7 @@ class GraphModule(QMainWindow):
     def destructor(self):
         if self._cleanup_done:
             return  # Skip cleanup if already done
-        print("Destructor called, performing cleanup...")
-        #self.reset_button.clicked.disconnect(self.reset)
+        #print("Destructor called, performing cleanup...")
         self.checkbox.stateChanged.disconnect(self.toggle)
         self.serialhandler.data_changed.disconnect(self.update_graph)
         try:
@@ -184,15 +141,85 @@ class GraphModule(QMainWindow):
             pass
 
         del (self.central_widget, self.layout, self.plot_widget, 
-            self.pen, self.sidebox, self.sidebox2, self.x_combo, self.y_combo, 
-            self.trim_container, self.selected_y_columns, self.selected_x,
-            self.checkbox, self.crosshair_enable, 
-            self.graph_indice, self.x_axis_offset, 
-            self.y_axis_offset, self.end_offset, self.last_mouse_position, 
-            self.escalation_status, self.events, self.event_markers, self.serialhandler)
+            self.pen, self.sidebox, self.sidebox2, self.x_combo, self.y_combo,  self.selected_y_columns, 
+            self.selected_x, self.checkbox, self.crosshair_enable, self.graph_indice, self.x_axis_offset, 
+            self.y_axis_offset, self.end_offset, self.last_mouse_position, self.escalation_status,
+             self.events, self.event_markers, self.serialhandler)
         self._cleanup_done = True
-        print("Cleanup complete.")
+        #print("Cleanup complete.")
 
+    def open_math_channel(self):
+        channel_dialog = MathChannelsDialog()
+        if channel_dialog.exec() == QDialog.Accepted:
+            func = None
+            input_variables = None
+            duplicate = False
+            func_list, func_list_str, input_variables_list = self.create_lambda_with_variables(channel_dialog.return_formula())
+            self.math_channels = func_list_str
+            # print(func_list_str)
+            ## Remove math channels that didnt get included
+            for item in list(self.plot_items) :
+                    if item["math_ch"] != None and item["math_ch_str"] not in self.math_channels:
+                        self.plot_widget.removeItem(item["plot_item"])
+                        self.plot_items.remove(item)
+                        # print("removing shee")
+
+            if len(self.plot_items) > 1:
+                bottom_plot = self.plot_items[-1]["plot_item"]
+                for item in self.plot_items[:-1]:
+                    item["plot_item"].setXLink(bottom_plot)
+
+            self.update_axes_visibility()
+            self.refresh_y_list()
+
+            for idx, func in enumerate(func_list):
+                for item in self.plot_items:
+                    # print(item["math_ch_str"])
+                    # print("compare ||")
+                    # print(func_list_str[idx])
+                    if item["math_ch_str"] == func_list_str[idx]:
+                        duplicate = True
+                        break
+                if duplicate:
+                    # print("dupe detected")
+                    duplicate = False
+                    continue
+                color = self.rainbow_colors[self.color_index % len(self.rainbow_colors)]
+                self.color_index += 1
+                plot_item = self.plot_widget.addPlot(row=len(self.plot_items) + idx, col=0)
+                data_item = plot_item.plot(pen=pg.mkPen(color=color, width=1))
+                #print(input_variables_list[idx])
+                #print(func_list_str[idx])
+                added_item = {'plot_item': plot_item, 'data_item': data_item, 'y_column': input_variables_list[idx], 'line_color': color, "math_ch": func, "math_ch_str": func_list_str[idx]}
+                self.plot_items.append(added_item)
+                if len(self.plot_items) > 1:
+                    bottom_plot = self.plot_items[-1]["plot_item"]
+                    for item in self.plot_items[:-1]:
+                        item["plot_item"].setXLink(bottom_plot)
+
+                self.update_axes_visibility()
+                self.refresh_y_list()
+    
+                
+    def create_lambda_with_variables(self, input_formulas):
+        def replace_bracket(match):
+            var_name = match.group(1)
+            return variable_map[var_name]
+
+        lambda_func_list = []
+        unique_variables_list = []
+
+        for formula in input_formulas:
+            matches = re.findall(r'\[([^\]]+)\]', formula)
+            unique_variables = list(set(matches))
+            variable_map = {var: f"var_{i}" for i, var in enumerate(unique_variables)}
+            modified_string = re.sub(r'\[([^\]]+)\]', replace_bracket, formula)
+            sympy_expr = sympify(modified_string)
+            lambda_func = lambdify(list(variable_map.values()), sympy_expr)
+            lambda_func_list.append(lambda_func)
+            unique_variables_list.append(unique_variables)
+        return lambda_func_list, input_formulas, unique_variables_list
+            
     def open_color_dialog(self):
         color = QColorDialog.getColor()
         if color.isValid(): 
@@ -281,22 +308,6 @@ class GraphModule(QMainWindow):
             self.plot_widget.addItem(event_marker, ignoreBounds=True)
             self.escalation_status = 0
             self.event_markers.append([event_marker, x_pos])
-
-    def reset(self):
-        self.pause_graph()
-        self.set_active_data()
-        self.plot_graph()
-
-    '''def set_labels(self):
-        x_label = self.x_combo.currentText()
-        y_label = self.y_combo.currentText()
-        self.plot_widget.clear()
-        self.initCrosshair()
-        font = QFont()
-        font.setPointSize(12)
-        self.plot_widget.setLabel('bottom', text=x_label)
-        self.plot_widget.setLabel('left', text=y_label)
-    '''
         
     def initialize_combo_boxes(self):
         # Clear existing items from combo boxes
@@ -305,7 +316,7 @@ class GraphModule(QMainWindow):
 
         # Hardcoded list of column names
         column_names = [
-            "Timestamp (s)",
+            "Timestamp (ms)",
             "X Acceleration (mG)",
             "Y Acceleration (mG)",
             "Z Acceleration (mG)",
@@ -348,133 +359,73 @@ class GraphModule(QMainWindow):
     @pyqtSlot(dict)
     def update_graph(self, new_data):
         x_column = self.x_combo.currentText()
-        y_columns = list(self.plot_data_items.keys())
+        y_columns = self.y_combo.currentData()
         queue_size = self.queue_size_slider.value()
         self.queue_size_label.setText(f"Queue Size: {queue_size}")
-
-        if x_column not in new_data:
-            print(f"X column '{x_column}' not found in data")
-            return
 
         x_values = np.asarray(new_data[x_column]).flatten()
         x_values = x_values[-queue_size:]
 
-        for y_column in y_columns:
-            if y_column not in new_data:
-                print(f"Y column '{y_column}' not found in data")
-                continue
+        for item in self.plot_items:
+            if not isinstance(item["y_column"], list):
+                y_values = np.asarray(new_data[item["y_column"]]).flatten()
+                y_values = y_values[-queue_size:]
 
-            y_values = np.asarray(new_data[y_column]).flatten()
-            y_values = y_values[-queue_size:]
-
-            # Synchronize lengths
-            min_length = min(len(x_values), len(y_values))
-            x_values_sync = x_values[-min_length:]
-            y_values_sync = y_values[-min_length:]
-
-            # Update existing plot data
-            data_item = self.plot_data_items[y_column]['data_item']
-            data_item.setData(x=x_values_sync, y=y_values_sync)
-
-            # Optionally, update y-axis range if needed
-            y_min, y_max = np.min(y_values_sync), np.max(y_values_sync)
-            y_range = y_max - y_min
-            y_pad = y_range * 0.05  # 5% padding
-            plot_item = self.plot_data_items[y_column]['plot_item']
-            plot_item.setYRange(y_min - y_pad, y_max + y_pad, padding=0)
+                data_item = item["data_item"] # Is a plotitem
+                data_item.setData(x=x_values, y=y_values)
+            else:
+                func = item["math_ch"]
+                column_data = [np.asarray(new_data[name])[-queue_size:] for name in item["y_column"]]
+                item["data_item"].setData(x=x_values, y=func(*column_data))
+                
+            # # Optionally, update y-axis range if needed
+            # y_min, y_max = np.min(y_values), np.max(y_values)
+            # y_range = y_max - y_min
+            # y_pad = y_range * 0.05  # 5% padding
+            # plot_item = self.plot_data_items[y_column]['plot_item']
+            # plot_item.setYRange(y_min - y_pad, y_max + y_pad, padding=0)
 
         # Update x-axis range on the bottom plotif self.plot_items:
-        if len(self.plot_items) > 0:
-            x_min, x_max = x_values_sync[0], x_values_sync[-1]
-            self.plot_items[-1].setXRange(x_min, x_max, padding=0)
-
+        # if len(self.plot_items) > 0:
+        #     x_min, x_max = x_values[0], x_values[-1]
+        #     self.plot_items[-1].setXRange(x_min, x_max, padding=0)
 
     def modifyPlots(self):
         y_columns = self.y_combo.currentData()
-        print("Selected Y columns:", y_columns)
 
-        num_plots = len(y_columns)
-        if num_plots == 0:
-            if not hasattr(self, 'no_y_columns_printed') or not self.no_y_columns_printed:
-                print("No Y-columns selected")
-                self.no_y_columns_printed = True
-            return
-        else:
-            self.no_y_columns_printed = False
+        for item in list(self.plot_items) :
+            if item["math_ch"] == None and item["y_column"] not in y_columns:
+                self.plot_widget.removeItem(item["plot_item"])
+                self.plot_items.remove(item)
 
-        print("Before sorting:", y_columns)
-        if not self.plot_order:
-            self.plot_order = list(y_columns)       
-        else:
-            for col in y_columns:
-                if col not in self.plot_order:
-                    self.plot_order.append(col)    
-        y_columns = [y for y in self.plot_order if y in y_columns]
-        print("After sorting:", y_columns)
+        for item in list(self.plot_items) :
+            if item["math_ch"] != None and item["math_ch_str"] not in self.math_channels:
+                self.plot_widget.removeItem(item["plot_item"])
+                self.plot_items.remove(item)
 
-        # Remove any plots that are no longer selected
-        for y_col in list(self.plot_data_items.keys()):
-            if y_col not in y_columns:
-                plot_item = self.plot_data_items[y_col]['plot_item']
-                self.plot_widget.removeItem(plot_item)
-                del self.plot_data_items[y_col]
-                self.plot_items.remove(plot_item)
-                if y_col in self.plot_order:
-                    self.plot_order.remove(y_col)
-
-        y_columns = [y for y in self.plot_order if y in y_columns]
-
-        # Adjust plot positions
-        for idx, y_column in enumerate(y_columns):
-            if y_column in self.plot_data_items:
-                # Update plot position
-                plot_item = self.plot_data_items[y_column]['plot_item']
-                self.plot_widget.ci.addItem(plot_item, row=idx, col=0)
+        last_row = len(self.plot_items)
+        for y_col in y_columns:
+            existing_item = next((item for item in self.plot_items if (item["y_column"] == y_col) or (y_col in item["y_column"])), None)
+            if existing_item:
+                # Edits existing plot
+                row_idx = self.plot_items.index(existing_item)
+                self.plot_widget.ci.addItem(existing_item["plot_item"], row=row_idx, col=0)
             else:
-                # Assign a rainbow color
+                # Creates new plot
                 color = self.rainbow_colors[self.color_index % len(self.rainbow_colors)]
                 self.color_index += 1
 
-                plot_item = self.plot_widget.addPlot(row=idx, col=0)
+                plot_item = self.plot_widget.addPlot(row=last_row, col=0)
                 data_item = plot_item.plot(pen=pg.mkPen(color=color, width=1))
-                self.plot_data_items[y_column] = {'plot_item': plot_item, 'data_item': data_item}
-                self.plot_items.append(plot_item)
-                self.line_colors[y_column] = color
-                # Add y_column to plot_order if not already there
-                if y_column not in self.plot_order:
-                    self.plot_order.append(y_column)
+                self.plot_items.append({'plot_item': plot_item, 'data_item': data_item, 'y_column': y_col, 'line_color': color, "math_ch": None, "math_ch_str": None})
 
-        if len(self.plot_items) > 0:
-            bottom_plot = self.plot_items[-1]
-            for plot_item in self.plot_items[:-1]:
-                plot_item.setXLink(bottom_plot)
+        if len(self.plot_items) > 1:
+            bottom_plot = self.plot_items[-1]["plot_item"]
+            for item in self.plot_items[:-1]:
+                item["plot_item"].setXLink(bottom_plot)
 
         self.update_axes_visibility()
-        self.update_graph(self.serialhandler.data)
-
-        # Clear existing widgets in y_list_layout
-        for i in reversed(range(self.y_list_layout.count())):
-            item = self.y_list_layout.takeAt(i)
-            w = item.widget()
-            if w:
-                w.deleteLater()
-
-        for y_col in y_columns:
-            h_layout = QHBoxLayout()
-            h_layout.setSpacing(1)  # minimal space between button & label
-            label = QLabel(y_col)
-            color_btn = QPushButton()
-            color_btn.setFixedSize(20,20)
-            c = self.line_colors[y_col]
-            color_btn.setStyleSheet(f"background-color: {c.name()}; border: 1px solid black;")
-            color_btn.clicked.connect(lambda ch, yc=y_col: self.change_line_color(yc))
-            h_layout.addWidget(color_btn)
-            h_layout.addWidget(label)
-            widget_container = QWidget()
-            widget_container.setLayout(h_layout)
-            self.y_list_layout.addWidget(widget_container)
-
-        print("modifyPlots called")
+        self.refresh_y_list()
 
     def update_axes_visibility(self):
         """
@@ -485,7 +436,8 @@ class GraphModule(QMainWindow):
             return
 
         # Hide bottom axis on all but the bottom plot
-        for plot_item in self.plot_items[:-1]:
+        for item in self.plot_items[:-1]:
+            plot_item = item["plot_item"]
             plot_item.showAxis("bottom", show=False)
             ax = plot_item.getAxis("bottom")
             # Remove any ticks or values
@@ -497,7 +449,7 @@ class GraphModule(QMainWindow):
             plot_item.setLabel('bottom', "")
 
         # Show bottom axis on the bottom plot
-        bottom_plot = self.plot_items[-1]
+        bottom_plot = self.plot_items[-1]["plot_item"]
         bottom_plot.showAxis("bottom", show=True)
         ax = bottom_plot.getAxis("bottom")
         # Show values on the bottom plot
@@ -505,15 +457,14 @@ class GraphModule(QMainWindow):
         # You can customize ticks if necessary, or leave defaults
         bottom_plot.setLabel('bottom', text=self.x_combo.currentText())
 
-    def change_line_color(self, y_col):
+    def change_line_color(self, item):
         # Open color dialog and change line color
-        new_color = QColorDialog.getColor(initial=self.line_colors[y_col], parent=self)
+        new_color = QColorDialog.getColor(initial=item["line_color"], parent=self)
         if new_color.isValid():
-            self.line_colors[y_col] = new_color
-            data_item = self.plot_data_items[y_col]['data_item']
-            data_item.setPen(pg.mkPen(color=new_color))
+            item["line_color"] = new_color
+            data_item = item["data_item"]
+            data_item.setPen(pg.mkPen(color=new_color, width=self.thickness_slider.value()))
             self.refresh_y_list()
-
 
     def refresh_y_list(self):
         # Rebuilds the sidebar list without reprocessing plots
@@ -523,24 +474,36 @@ class GraphModule(QMainWindow):
             if w:
                 w.deleteLater()
 
-        y_columns = list(self.plot_data_items.keys())
-        for y_col in y_columns:
+        #y_columns = self.y_combo.currentData()
+        for item in self.plot_items:
             h_layout = QHBoxLayout()
-            label = QLabel(y_col)
+            if isinstance(item["y_column"], list):
+                label = QLabel(str(item["math_ch_str"]))
+                label.setStyleSheet("font-size: 12px;")
+                #print(str(item["math_ch_str"]))
+            else:
+                label = QLabel(item['y_column'])
+                label.setStyleSheet("font-size: 12px;")
+            label.mousePressEvent = lambda event, itm=item: self.show_full_label(itm)
+            c = item["line_color"]
             color_btn = QPushButton()
-            color_btn.setFixedSize(20,20)
-            c = self.line_colors[y_col]
+            color_btn.setFixedSize(20, 20)
             color_btn.setStyleSheet(f"background-color: {c.name()}; border: 1px solid black;")
-            color_btn.clicked.connect(lambda ch, yc=y_col: self.change_line_color(yc))
-
+            color_btn.clicked.connect(lambda ch, itm=item: self.change_line_color(itm)) 
             h_layout.addWidget(color_btn)
             h_layout.addWidget(label)
-            container = QWidget()
-            container.setLayout(h_layout)
-            container.setContentsMargins(0, 0, 0, 0)
-            self.y_list_layout.addWidget(container)
+            widget_container = QWidget()
+            widget_container.setLayout(h_layout)
+            self.y_list_layout.addWidget(widget_container)
 
-
+    def show_full_label(self, item):
+        dialog = QDialog(self)
+        dialog_layout = QVBoxLayout()
+        full_label = QLabel(str(item["math_ch_str"]) if isinstance(item["y_column"], list) else item['y_column'])
+        full_label.setStyleSheet("font-size: 30px;") 
+        dialog_layout.addWidget(full_label)
+        dialog.setLayout(dialog_layout)
+        dialog.exec_()
 
     def get_info(self):
         """Returns a dictionary containing the state of the GraphModule."""
@@ -581,9 +544,6 @@ class GraphModule(QMainWindow):
             self.checkbox.setChecked(info['crosshair_enabled'])
         if 'gvg_enabled' in info:
             self.checkbox_gg.setChecked(info['gvg_enabled'])
-
-
-
 
     def get_graph_type(self):
         return "GraphModule"

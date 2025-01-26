@@ -12,7 +12,7 @@ class DataTypeDialog(QDialog):
         self.setWindowTitle("Select Data Type")
         
         self.data_types = {
-            "Timestamp (s)": 0,
+            "Timestamp (ms)": 0,
             "X Acceleration (mG)": 0,
             "Y Acceleration (mG)": 0,
             "Z Acceleration (mG)": 0,

@@ -110,7 +110,7 @@ class ReportModule(QMainWindow):
     @pyqtSlot(dict)
     def update_card(self, new_data):
         #print("card new data", new_data)
-        self.len_run.setText("Length of Run (s): " + str(new_data["Timestamp (s)"][-1]))
+        self.len_run.setText("Length of Run (s): " + str(new_data["Timestamp (ms)"][-1]))
         #print("max accel", self.max_accel)
         self.max_accel = max(self.max_accel, new_data["X Acceleration (mG)"][-1])
         #print("new data [-1]", new_data["X Acceleration (mG)"][-1])

@@ -372,7 +372,7 @@ class CustomDashboard(QMainWindow):
         for window in self.mdi_area.subWindowList():
             window.close()
 
-        print("Loading session:", active_session)
+        #print("Loading session:", active_session)
         tab_amt = len(active_session["pos"])
 
         # Recreate subwindows for this session
@@ -404,7 +404,7 @@ class CustomDashboard(QMainWindow):
             elif window_type == 'LabelModule':
                 sub_window = QMdiSubWindow()
                 sub_window.setAttribute(Qt.WA_DeleteOnClose)
-                data_type = metadata.get('data_type', "Timestamp (s)")
+                data_type = metadata.get('data_type', "Timestamp (ms)")
                 label_module = LabelModule(self.serialmonitor, data_type)
                 sub_window.setWidget(label_module)
             else:
@@ -499,7 +499,7 @@ class CustomDashboard(QMainWindow):
         cursor = self.connection.cursor()
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS telemetry_data (
-            "Timestamp (s)" REAL,
+            "Timestamp (ms)" REAL,
             "X Acceleration (mG)" REAL,
             "Y Acceleration (mG)" REAL,
             "Z Acceleration (mG)" REAL,
@@ -573,11 +573,10 @@ class CustomDashboard(QMainWindow):
                 session["filename"] = final_path
 
         print("All temp sessions were moved into sessions/ folder.")
-
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setStyleSheet(qdarkstyle.load_stylesheet(palette=DarkPalette))
-    with open("stylesheets/dark_styling.qss", "r") as f:
+    with open("resources/stylesheets/dark_styling.qss", "r") as f:
         app.setStyleSheet(app.styleSheet() + f.read())
     window = CustomDashboard()
     window.show()

@@ -28,8 +28,11 @@ class SerialHandler(QObject):
         self.start_time = time.time()
         self.last_time = self.start_time
         self.data_queue : dict[str, deque[float]] = {}
+        self.window_size = 20
+        self.hertz_rates = [] 
+        self.hertz_rate_sum = 0  
         self.data : dict[str, list[float]] = {
-            "Timestamp (s)": [],
+            "Timestamp (ms)": [],
             "X Acceleration (mG)": [],
             "Y Acceleration (mG)": [],
             "Z Acceleration (mG)": [],
@@ -66,7 +69,7 @@ class SerialHandler(QObject):
             "Refresh Rate": []
         }
         self.temp_data : dict[str, float]= {
-            "Timestamp (s)": 0,
+            "Timestamp (ms)": 0,
             "X Acceleration (mG)": 0,
             "Y Acceleration (mG)": 0,
             "Z Acceleration (mG)": 0,
@@ -141,7 +144,7 @@ class SerialHandler(QObject):
             #print("Testing handler is reading")
             while self.is_reading:
                 self.clear_temp_data()
-                self.temp_data["Timestamp (s)"] = time.time() - self.start_time
+                self.temp_data["Timestamp (ms)"] = time.time() - self.start_time
                 self.temp_data["X Acceleration (mG)"] = random.random()
                 self.temp_data["Y Acceleration (mG)"]= random.random() 
                 self.temp_data["Z Acceleration (mG)"]= random.random()    
@@ -179,9 +182,7 @@ class SerialHandler(QObject):
                 current_time = time.time()
                 hertz_rate = 1 / (current_time - self.last_time)
                 #print(f"Update rate: {hertz_rate:.2f} Hz")
-                hertz_count += 1
-                hertz_rate_sum += hertz_rate
-                self.temp_data["Refresh Rate"] = hertz_rate_sum / hertz_count
+                self.temp_data["Refresh Rate"] = self.update_hertz(hertz_rate)
                 self.last_time = current_time
                 ### Last things last
                 self.update_data(self.temp_data, self.last_read_time)
@@ -202,7 +203,7 @@ class SerialHandler(QObject):
                         print("Error in decoding : ", str(e))
                     match(mode):
                         case 0:
-                            self.temp_data["Timestamp (s)"] = data[1]
+                            self.temp_data["Timestamp (ms)"] = data[1]
                             self.temp_data["X Acceleration (mG)"] = data[2]
                             self.temp_data["Y Acceleration (mG)"]= data[3] 
                             self.temp_data["Z Acceleration (mG)"]= data[4]    
@@ -238,7 +239,7 @@ class SerialHandler(QObject):
                             #self.temp_data["Lap Counter"] = data[34]
                             #print("no error")
                         case 1:
-                            self.temp_data["Timestamp (s)"] = data[1]
+                            self.temp_data["Timestamp (ms)"] = data[1]
                             self.temp_data["X Acceleration (mG)"] = data[2]
                             self.temp_data["Y Acceleration (mG)"]= data[3] 
                             self.temp_data["Z Acceleration (mG)"]= data[4]    
@@ -262,7 +263,7 @@ class SerialHandler(QObject):
                             self.temp_data["Back Right Shock Pot (mm)"] = data[22]
                             self.temp_data["Back Left Shock Pot (mm)"] = data[23]
                         case 2:
-                            self.temp_data["Timestamp (s)"] = data[1]
+                            self.temp_data["Timestamp (ms)"] = data[1]
                             self.temp_data["X Acceleration (mG)"] = data[2]
                             self.temp_data["Y Acceleration (mG)"]= data[3]  
                             self.temp_data["Front Left Speed (mph)"]= data[4] 
@@ -271,7 +272,7 @@ class SerialHandler(QObject):
                             self.temp_data["Back Right Shock Pot (mm)"] = data[7]
                             self.temp_data["Back Left Shock Pot (mm)"] = data[8]
                         case 3:
-                            self.temp_data["Timestamp (s)"] = data[1]
+                            self.temp_data["Timestamp (ms)"] = data[1]
                             self.temp_data["X Acceleration (mG)"] = data[2]
                             self.temp_data["Y Acceleration (mG)"]= data[3]       
                             self.temp_data["Front Left Speed (mph)"]= data[4] 
@@ -288,7 +289,7 @@ class SerialHandler(QObject):
                             self.temp_data["Back Right Shock Pot (mm)"] = data[15]
                             self.temp_data["Back Left Shock Pot (mm)"] = data[16]
                         case 4:
-                            self.temp_data["Timestamp (s)"] = data[1]
+                            self.temp_data["Timestamp (ms)"] = data[1]
                             self.temp_data["X Acceleration (mG)"] = data[2]
                             self.temp_data["Y Acceleration (mG)"]= data[3] 
                             self.temp_data["Front Left Speed (mph)"]= data[4] 
@@ -308,14 +309,25 @@ class SerialHandler(QObject):
                     if hertz_rate < 50:
                         hertz_count += 1
                         hertz_rate_sum += hertz_rate
-                        hertz_rolling_average = hertz_rate_sum / hertz_count
-                    self.temp_data["Refresh Rate"] = hertz_rolling_average
+                        #hertz_rolling_average = hertz_rate_sum / hertz_count
+                    self.temp_data["Refresh Rate"] = self.update_hertz(hertz_rate)
                     self.last_time = current_time
                     ### Last Things last
                     self.update_data(self.temp_data, self.last_read_time)
                 except Exception as e:
                     print("Error in reading line from serial: ", str(e))
 
+    def update_hertz(self, hertz_rate):
+        if hertz_rate < 50:
+            self.hertz_rates.append(hertz_rate)
+            self.hertz_rate_sum += hertz_rate
+            if len(self.hertz_rates) > self.window_size:
+                oldest_rate = self.hertz_rates.pop(0)
+                self.hertz_rate_sum -= oldest_rate
+        
+            hertz_rolling_average = self.hertz_rate_sum / len(self.hertz_rates)
+            return hertz_rolling_average
+        return None
 
     def emit_data_changed(self):
         print("Emitting data has changed to all instances of graph_module.py with latest data:", self.data)
@@ -333,7 +345,7 @@ class SerialHandler(QObject):
 
     def clear_temp_data(self):
         self.temp_data : dict[str, float]= {
-            "Timestamp (s)": 0,
+            "Timestamp (ms)": 0,
             "X Acceleration (mG)": 0,
             "Y Acceleration (mG)": 0,
             "Z Acceleration (mG)": 0,
@@ -372,7 +384,7 @@ class SerialHandler(QObject):
 
     def clear_data(self):
         self.data : dict[str, list[float]] = {
-            "Timestamp (s)": [],
+            "Timestamp (ms)": [],
             "X Acceleration (mG)": [],
             "Y Acceleration (mG)": [],
             "Z Acceleration (mG)": [],
