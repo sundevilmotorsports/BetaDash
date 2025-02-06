@@ -1,25 +1,5 @@
 import sys
-from PyQt5.QtWidgets import (
-    QApplication,
-    QMainWindow,
-    QMdiArea,
-    QVBoxLayout,
-    QHBoxLayout,
-    QStatusBar,
-    QWidget,
-    QPushButton,
-    QComboBox,
-    QFileDialog,
-    QMdiSubWindow,
-    QSlider,
-    QLabel,
-    QTextEdit,
-    QRadioButton,
-    QDockWidget,
-    QTabWidget,
-    QDialog,
-    QToolButton
-)
+from PyQt5.QtWidgets import *
 import os
 from PyQt5.QtGui import QIcon
 from graph_module import GraphModule
@@ -33,9 +13,7 @@ import threading
 import glob
 import pickle
 from datetime import datetime
-from PyQt5.QtCore import (
-    Qt, QTimer
-)
+from PyQt5.QtCore import Qt, QTimer
 import time
 import sqlite3
 import qdarkstyle
@@ -208,7 +186,6 @@ class CustomDashboard(QMainWindow):
                 padding: 2px;
             }
         """)
-
 
         #self.tab_widget.setMaximumWidth(QMdiArea.width)
         self.tab_widget.setTabsClosable(True)
@@ -465,9 +442,9 @@ class CustomDashboard(QMainWindow):
     def create_label_module(self):
         dialog = DataTypeDialog(self)
         if dialog.exec_() == QDialog.Accepted:
-            selected_data_type, value = dialog.return_selected()
+            selected_data_type, value, channel, channel_formula, channel_inputs = dialog.return_selected()
             sub_window = QMdiSubWindow()
-            label_module = LabelModule(self.serialmonitor, selected_data_type)
+            label_module = LabelModule(self.serialmonitor, selected_data_type, channel=channel, channel_formula=channel_formula, channel_inputs=channel_inputs)
             sub_window.setAttribute(Qt.WA_DeleteOnClose)
             sub_window.setWidget(label_module)
             sub_window.setGeometry(label_module.geometry())

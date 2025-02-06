@@ -13,6 +13,18 @@ from pyqtgraph import PlotDataItem
 from checkable_combo import CheckableComboBox
 from channel import MathChannelsDialog
 from sympy import symbols, sympify, lambdify
+from dataclasses import dataclass, field
+from typing import List, Optional, Callable, Dict
+
+@dataclass
+class PlotItem:
+    plot_item: pg.PlotItem
+    data_item: pg.PlotDataItem
+    y_column: str | List[str]
+    line_color: QColor
+    label_item: Optional[pg.TextItem] = field(default=None)
+    math_ch: Optional[Callable] = field(default=None)
+    math_ch_str: Optional[str] = field(default=None)
 
 class GraphModule(QMainWindow):
     def __init__(self, serialhander : SerialHandler):
@@ -26,7 +38,7 @@ class GraphModule(QMainWindow):
         self.layout = QHBoxLayout(self.central_widget)
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.plot_widget = pg.GraphicsLayoutWidget()
-        self.plot_items = [] # {plot_item, data_item, y_column, line_color, math_ch, math_ch_str} FORMAT PAY ATTENTION
+        self.plot_items: Dict[str, PlotItem] = {} # {plot_item, data_item, y_column, line_color, math_ch, math_ch_str} FORMAT PAY ATTENTION, CHANGED FOR NOW, MAYBE PERMEANTELY
 
         self.math_channels = []
 
@@ -52,7 +64,7 @@ class GraphModule(QMainWindow):
         self.sidebox.setAlignment(Qt.AlignTop)
         self.x_combo = QComboBox()
         self.y_combo = CheckableComboBox()
-        self.y_combo.model().dataChanged.connect(lambda: self.modifyPlots())
+        self.y_combo.model().dataChanged.connect(lambda: self.modify_plots(False, None))
         self.y_combo.setFixedHeight(25)
 
         #self.x_combo.currentIndexChanged.connect(self.set_labels)
@@ -82,7 +94,7 @@ class GraphModule(QMainWindow):
 
         # Queue Size Slider
         self.queue_size_slider = QSlider(Qt.Horizontal)
-        self.queue_size_slider.setRange(1, 300) 
+        self.queue_size_slider.setRange(1, 1000) 
         self.queue_size_slider.setValue(300)
 
         # Label for slider
@@ -149,58 +161,10 @@ class GraphModule(QMainWindow):
         #print("Cleanup complete.")
 
     def open_math_channel(self):
-        channel_dialog = MathChannelsDialog()
+        channel_dialog = MathChannelsDialog("graph_module")
         if channel_dialog.exec() == QDialog.Accepted:
-            func = None
-            input_variables = None
-            duplicate = False
-            func_list, func_list_str, input_variables_list = self.create_lambda_with_variables(channel_dialog.return_formula())
-            self.math_channels = func_list_str
-            # print(func_list_str)
-            ## Remove math channels that didnt get included
-            for item in list(self.plot_items) :
-                    if item["math_ch"] != None and item["math_ch_str"] not in self.math_channels:
-                        self.plot_widget.removeItem(item["plot_item"])
-                        self.plot_items.remove(item)
-                        # print("removing shee")
-
-            if len(self.plot_items) > 1:
-                bottom_plot = self.plot_items[-1]["plot_item"]
-                for item in self.plot_items[:-1]:
-                    item["plot_item"].setXLink(bottom_plot)
-
-            self.update_axes_visibility()
-            self.refresh_y_list()
-
-            for idx, func in enumerate(func_list):
-                for item in self.plot_items:
-                    # print(item["math_ch_str"])
-                    # print("compare ||")
-                    # print(func_list_str[idx])
-                    if item["math_ch_str"] == func_list_str[idx]:
-                        duplicate = True
-                        break
-                if duplicate:
-                    # print("dupe detected")
-                    duplicate = False
-                    continue
-                color = self.rainbow_colors[self.color_index % len(self.rainbow_colors)]
-                self.color_index += 1
-                plot_item = self.plot_widget.addPlot(row=len(self.plot_items) + idx, col=0)
-                data_item = plot_item.plot(pen=pg.mkPen(color=color, width=1))
-                #print(input_variables_list[idx])
-                #print(func_list_str[idx])
-                added_item = {'plot_item': plot_item, 'data_item': data_item, 'y_column': input_variables_list[idx], 'line_color': color, "math_ch": func, "math_ch_str": func_list_str[idx]}
-                self.plot_items.append(added_item)
-                if len(self.plot_items) > 1:
-                    bottom_plot = self.plot_items[-1]["plot_item"]
-                    for item in self.plot_items[:-1]:
-                        item["plot_item"].setXLink(bottom_plot)
-
-                self.update_axes_visibility()
-                self.refresh_y_list()
-    
-                
+            self.modify_plots(True, channel_dialog.return_formula())
+       
     def create_lambda_with_variables(self, input_formulas):
         def replace_bracket(match):
             var_name = match.group(1)
@@ -366,63 +330,92 @@ class GraphModule(QMainWindow):
         x_values = np.asarray(new_data[x_column]).flatten()
         x_values = x_values[-queue_size:]
 
-        for item in self.plot_items:
-            if not isinstance(item["y_column"], list):
-                y_values = np.asarray(new_data[item["y_column"]]).flatten()
+        for plot_item in self.plot_items.values():
+            if not isinstance(plot_item.y_column, list):
+                y_values = np.asarray(new_data[plot_item.y_column]).flatten()
                 y_values = y_values[-queue_size:]
 
-                data_item = item["data_item"] # Is a plotitem
-                data_item.setData(x=x_values, y=y_values)
+                plot_item.data_item.setData(x=x_values, y=y_values)
             else:
-                func = item["math_ch"]
-                column_data = [np.asarray(new_data[name])[-queue_size:] for name in item["y_column"]]
-                item["data_item"].setData(x=x_values, y=func(*column_data))
-                
-            # # Optionally, update y-axis range if needed
-            # y_min, y_max = np.min(y_values), np.max(y_values)
-            # y_range = y_max - y_min
-            # y_pad = y_range * 0.05  # 5% padding
-            # plot_item = self.plot_data_items[y_column]['plot_item']
-            # plot_item.setYRange(y_min - y_pad, y_max + y_pad, padding=0)
+                func = plot_item.math_ch
+                column_data = [np.asarray(new_data[name])[-queue_size:] for name in plot_item.y_column]
+                plot_item.data_item.setData(x=x_values, y=func(*column_data))
 
-        # Update x-axis range on the bottom plotif self.plot_items:
-        # if len(self.plot_items) > 0:
-        #     x_min, x_max = x_values[0], x_values[-1]
-        #     self.plot_items[-1].setXRange(x_min, x_max, padding=0)
-
-    def modifyPlots(self):
+    def modify_plots(self, update : bool, return_formulas : list):
         y_columns = self.y_combo.currentData()
+        if update:
+            func_list, func_list_str, input_variables_list = self.create_lambda_with_variables(return_formulas)
+            self.math_channels = func_list_str
+        else: 
+            func_list, func_list_str, input_variables_list = [], [], []
 
-        for item in list(self.plot_items) :
-            if item["math_ch"] == None and item["y_column"] not in y_columns:
-                self.plot_widget.removeItem(item["plot_item"])
-                self.plot_items.remove(item)
-
-        for item in list(self.plot_items) :
-            if item["math_ch"] != None and item["math_ch_str"] not in self.math_channels:
-                self.plot_widget.removeItem(item["plot_item"])
-                self.plot_items.remove(item)
-
+        for name in list(self.plot_items.keys()):
+            plot_item = self.plot_items[name]
+            if (plot_item.math_ch is None and plot_item.y_column not in y_columns) or (plot_item.math_ch is not None and plot_item.math_ch_str not in self.math_channels):
+                self.plot_widget.removeItem(plot_item.plot_item)
+                del self.plot_items[name]
+        
+        self.plot_widget.update()
+        self.plot_widget.clear()
         last_row = len(self.plot_items)
         for y_col in y_columns:
-            existing_item = next((item for item in self.plot_items if (item["y_column"] == y_col) or (y_col in item["y_column"])), None)
-            if existing_item:
-                # Edits existing plot
-                row_idx = self.plot_items.index(existing_item)
-                self.plot_widget.ci.addItem(existing_item["plot_item"], row=row_idx, col=0)
+            if y_col in self.plot_items:
+                # Update existing plot
+                plot_item = self.plot_items[y_col]
+                row_idx = list(self.plot_items.keys()).index(y_col) 
+                #plot_item.data_item.getViewBox().enableAutoRange(axis='x', enable=True)
+                self.plot_widget.ci.addItem(plot_item.plot_item, row=row_idx, col=0)
+                #plot_item.data_item.getViewBox().autoRange()
             else:
-                # Creates new plot
+                # Create new plot
                 color = self.rainbow_colors[self.color_index % len(self.rainbow_colors)]
                 self.color_index += 1
+                plot = self.plot_widget.addPlot(row=last_row, col=0)
+                data_item = plot.plot(pen=pg.mkPen(color=color, width=1))
+                #data_item.getViewBox().enableAutoRange(axis='x', enable=True)
 
-                plot_item = self.plot_widget.addPlot(row=last_row, col=0)
-                data_item = plot_item.plot(pen=pg.mkPen(color=color, width=1))
-                self.plot_items.append({'plot_item': plot_item, 'data_item': data_item, 'y_column': y_col, 'line_color': color, "math_ch": None, "math_ch_str": None})
+                # label_item = pg.TextItem(y_col, anchor=(.1, .4))
+                # label_item.setFont(QFont("Arial", 10, QFont.Bold))
+                # #label_item.setColor(color)
+                # plot.addItem(label_item)
+
+                self.plot_items[y_col] = PlotItem(
+                    plot_item=plot,
+                    data_item=data_item,
+                    y_column=y_col,
+                    line_color=color,
+                    # label_item=label_item
+                )
+                last_row += 1
+
+        for idx, (func, func_str, input_vars) in enumerate(zip(func_list, func_list_str, input_variables_list)):
+            if func_str in self.plot_items:
+                continue
+
+            color = self.rainbow_colors[self.color_index % len(self.rainbow_colors)]
+            self.color_index += 1
+            plot = self.plot_widget.addPlot(row=len(self.plot_items) + idx, col=0)
+            data_item = plot.plot(pen=pg.mkPen(color=color, width=1))
+
+            # label_item = pg.TextItem(func_str, anchor=(.1, .4))
+            # label_item.setFont(QFont("Arial", 10, QFont.Bold))
+            # #label_item.setColor(color)
+            # plot.addItem(label_item)
+
+            self.plot_items[func_str] = PlotItem(
+                plot_item=plot,
+                data_item=data_item,
+                y_column=input_vars,
+                line_color=color,
+                # label_item=label_item,
+                math_ch=func,
+                math_ch_str=func_str
+            )
 
         if len(self.plot_items) > 1:
-            bottom_plot = self.plot_items[-1]["plot_item"]
-            for item in self.plot_items[:-1]:
-                item["plot_item"].setXLink(bottom_plot)
+            bottom_plot = list(self.plot_items.values())[-1].plot_item
+            for item in list(self.plot_items.values())[:-1]:
+                item.plot_item.setXLink(bottom_plot)
 
         self.update_axes_visibility()
         self.refresh_y_list()
@@ -435,9 +428,11 @@ class GraphModule(QMainWindow):
         if len(self.plot_items) == 0:
             return
 
+        plot_items = list(self.plot_items.values())
+
         # Hide bottom axis on all but the bottom plot
-        for item in self.plot_items[:-1]:
-            plot_item = item["plot_item"]
+        for item in plot_items[:-1]:
+            plot_item = item.plot_item
             plot_item.showAxis("bottom", show=False)
             ax = plot_item.getAxis("bottom")
             # Remove any ticks or values
@@ -449,7 +444,7 @@ class GraphModule(QMainWindow):
             plot_item.setLabel('bottom', "")
 
         # Show bottom axis on the bottom plot
-        bottom_plot = self.plot_items[-1]["plot_item"]
+        bottom_plot = plot_items[-1].plot_item
         bottom_plot.showAxis("bottom", show=True)
         ax = bottom_plot.getAxis("bottom")
         # Show values on the bottom plot
@@ -459,39 +454,37 @@ class GraphModule(QMainWindow):
 
     def change_line_color(self, item):
         # Open color dialog and change line color
-        new_color = QColorDialog.getColor(initial=item["line_color"], parent=self)
+        new_color = QColorDialog.getColor(initial=item.line_color, parent=self)
         if new_color.isValid():
-            item["line_color"] = new_color
-            data_item = item["data_item"]
+            item.line_color = new_color
+            data_item = item.data_item
             data_item.setPen(pg.mkPen(color=new_color, width=self.thickness_slider.value()))
             self.refresh_y_list()
 
     def refresh_y_list(self):
-        # Rebuilds the sidebar list without reprocessing plots
+        # Clear existing widgets in the layout
         for i in reversed(range(self.y_list_layout.count())):
             item = self.y_list_layout.takeAt(i)
             w = item.widget()
             if w:
                 w.deleteLater()
 
-        #y_columns = self.y_combo.currentData()
-        for item in self.plot_items:
+        for plot_item in self.plot_items.values():
             h_layout = QHBoxLayout()
-            if isinstance(item["y_column"], list):
-                label = QLabel(str(item["math_ch_str"]))
-                label.setStyleSheet("font-size: 12px;")
-                #print(str(item["math_ch_str"]))
-            else:
-                label = QLabel(item['y_column'])
-                label.setStyleSheet("font-size: 12px;")
-            label.mousePressEvent = lambda event, itm=item: self.show_full_label(itm)
-            c = item["line_color"]
+
+            label_text = plot_item.math_ch_str if plot_item.math_ch else plot_item.y_column
+            label = QLabel(str(label_text))
+            label.setStyleSheet("font-size: 12px;")
+            label.mousePressEvent = lambda event, itm=plot_item: self.show_full_label(itm)
+
             color_btn = QPushButton()
             color_btn.setFixedSize(20, 20)
-            color_btn.setStyleSheet(f"background-color: {c.name()}; border: 1px solid black;")
-            color_btn.clicked.connect(lambda ch, itm=item: self.change_line_color(itm)) 
+            color_btn.setStyleSheet(f"background-color: {plot_item.line_color.name()}; border: 1px solid black;")
+            color_btn.clicked.connect(lambda ch, itm=plot_item: self.change_line_color(itm)) 
+
             h_layout.addWidget(color_btn)
             h_layout.addWidget(label)
+
             widget_container = QWidget()
             widget_container.setLayout(h_layout)
             self.y_list_layout.addWidget(widget_container)
@@ -499,7 +492,7 @@ class GraphModule(QMainWindow):
     def show_full_label(self, item):
         dialog = QDialog(self)
         dialog_layout = QVBoxLayout()
-        full_label = QLabel(str(item["math_ch_str"]) if isinstance(item["y_column"], list) else item['y_column'])
+        full_label = QLabel(str(item.math_ch_str) if isinstance(item.y_column, list) else item.y_column)
         full_label.setStyleSheet("font-size: 30px;") 
         dialog_layout.addWidget(full_label)
         dialog.setLayout(dialog_layout)

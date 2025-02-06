@@ -11,12 +11,14 @@ from qdarkstyle.light.palette import LightPalette  # noqa: E402
 import pickle
 
 class MathChannelsDialog(QDialog):
-    def __init__(self):
+    def __init__(self, source : str):
         super().__init__()
         self.setWindowTitle("Math Channelz")
         self.setGeometry(100, 100, 1200, 800)
+        self.source = source # details where the event is coming from
         main_layout = QHBoxLayout(self)
 
+        self.failed_usage = False
         self.setStyleSheet(qdarkstyle.load_stylesheet(palette=LightPalette))
         with open("resources/stylesheets/light_styling.qss", "r") as f:
             self.setStyleSheet(self.styleSheet() + f.read())
@@ -214,7 +216,7 @@ class MathChannelsDialog(QDialog):
 
         # Right buttons
         right_button_layout = QVBoxLayout()
-        self.ok_button = QPushButton("Add")
+        self.ok_button = QPushButton("Accept")
         self.cancel_button = QPushButton("Cancel")
         right_button_layout.addWidget(self.ok_button)
         right_button_layout.addWidget(self.cancel_button)
@@ -459,6 +461,8 @@ class MathChannelsDialog(QDialog):
             self.active_channels_layout.addWidget(checkbox)
                 
     def return_formula(self):
+        if self.failed_usage:
+            return []
         formulas = []          
         for idx, (channel, channel_data) in enumerate(self.channel_parameters.items()):
             formula = channel_data["formula"]
@@ -523,4 +527,11 @@ class MathChannelsDialog(QDialog):
       
     def accept(self):
         self.result = self.return_formula()
+        if (self.source == "label_module" and len(self.result) > 1):
+            QMessageBox.warning(self, "Selection Error", "For Label Module you can only select one channel at a time.")
+            return
+        super().accept()
+
+    def close(self):
+        self.failed_usage = True
         super().accept()

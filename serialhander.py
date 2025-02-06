@@ -108,7 +108,7 @@ class SerialHandler(QObject):
         #self.data = pl.DataFrame({col: pl.Series([], pl.Int64) for col in self.columns})
         
         for column_name in self.data.keys():
-            self.data_queue[column_name] = deque(maxlen=300)
+            self.data_queue[column_name] = deque(maxlen=1000)
     
     def set_sample_rate(self, rate):
         self.sample_rate = rate
