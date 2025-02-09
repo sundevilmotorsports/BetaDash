@@ -145,9 +145,9 @@ class SerialHandler(QObject):
             while self.is_reading:
                 self.clear_temp_data()
                 self.temp_data["Timestamp (ms)"] = time.time() - self.start_time
-                self.temp_data["X Acceleration (mG)"] = random.random()
-                self.temp_data["Y Acceleration (mG)"]= random.random() 
-                self.temp_data["Z Acceleration (mG)"]= random.random()    
+                self.temp_data["X Acceleration (mG)"] = (random.random()-0.5)*2
+                self.temp_data["Y Acceleration (mG)"]= (random.random()-0.5)*2
+                self.temp_data["Z Acceleration (mG)"]= (random.random()-0.5)*2  
                 self.temp_data["X Gyro (mdps)"]= random.random()
                 self.temp_data["Y Gyro (mdps)"]= random.random()  
                 self.temp_data["Z Gyro (mdps)"]= random.random()  

@@ -3,9 +3,11 @@ from PyQt5.QtWidgets import *
 import os
 from PyQt5.QtGui import QIcon
 from graph_module import GraphModule
+from gg_plot import ggPlot
 from serialhander import SerialHandler
 from report_card import ReportModule
 from WheelViz import WheelViz
+from rollPlot import rollPlot
 from label_module import DataTypeDialog
 from label_module import LabelModule
 import serial.tools.list_ports
@@ -29,6 +31,7 @@ class CustomDashboard(QMainWindow):
         # Initialize and start application
         self.sessions = []
         self.graph_modules = []
+        self.ggPlots = []
         self.video_modules = []
 
         self.new_session_data = {"pos": [], "size": [], "metadata": []}
@@ -143,6 +146,14 @@ class CustomDashboard(QMainWindow):
         self.graph_module_button.setMaximumWidth(200)
         self.graph_module_button.clicked.connect(self.create_graph_module)
 
+        self.gg_plot_button = QPushButton("Add GG PLOT")
+        self.gg_plot_button.setMaximumWidth(200)
+        self.gg_plot_button.clicked.connect(self.create_gg_plt)
+
+        self.ROLL_plot_button = QPushButton("Add Roll PLOT")
+        self.ROLL_plot_button.setMaximumWidth(200)
+        self.ROLL_plot_button.clicked.connect(self.create_roll_plt)
+
         self.label_module_button = QPushButton("Add Label Module")
         self.label_module_button.setMaximumWidth(200)
         self.label_module_button.clicked.connect(self.create_label_module)
@@ -220,6 +231,8 @@ class CustomDashboard(QMainWindow):
         self.serialmonitor.data_changed.connect(self.update_refresh_rate)
 
         self.toolbar.addWidget(self.graph_module_button)
+        self.toolbar.addWidget(self.gg_plot_button)
+        self.toolbar.addWidget(self.ROLL_plot_button)
         self.toolbar.addWidget(self.label_module_button)
         self.toolbar.addWidget(self.stop_reading_button)
         self.toolbar.addWidget(self.report_module_button)
@@ -433,6 +446,24 @@ class CustomDashboard(QMainWindow):
         sub_window = QMdiSubWindow()
         new_module = GraphModule(self.serialmonitor)
         self.graph_modules.append(new_module)
+        sub_window.setAttribute(Qt.WA_DeleteOnClose)
+        sub_window.setWidget(new_module)
+        sub_window.setGeometry(new_module.geometry())
+        self.mdi_area.addSubWindow(sub_window)
+        sub_window.show()
+    def create_gg_plt(self):
+        sub_window = QMdiSubWindow()
+        new_module = ggPlot(self.serialmonitor)
+        self.ggPlots.append(new_module)
+        sub_window.setAttribute(Qt.WA_DeleteOnClose)
+        sub_window.setWidget(new_module)
+        sub_window.setGeometry(new_module.geometry())
+        self.mdi_area.addSubWindow(sub_window)
+        sub_window.show()
+    def create_roll_plt(self):
+        sub_window = QMdiSubWindow()
+        new_module = rollPlot(self.serialmonitor)
+        self.ggPlots.append(new_module)
         sub_window.setAttribute(Qt.WA_DeleteOnClose)
         sub_window.setWidget(new_module)
         sub_window.setGeometry(new_module.geometry())
