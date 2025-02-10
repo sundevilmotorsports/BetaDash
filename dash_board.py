@@ -1,37 +1,37 @@
 import sys
-from PyQt5.QtWidgets import *
 import os
-from PyQt5.QtGui import QIcon
-from graph_module import GraphModule
-from gg_plot import ggPlot
-from serialhander import SerialHandler
-from report_card import ReportModule
-from WheelViz import WheelViz
-from rollPlot import rollPlot
-from label_module import DataTypeDialog
-from label_module import LabelModule
 import serial.tools.list_ports
 import threading
 import glob
 import pickle
-from datetime import datetime
-from PyQt5.QtCore import Qt, QTimer
 import time
 import sqlite3
 import qdarkstyle
+import shutil
+from PyQt5.QtWidgets import *
+from PyQt5.QtGui import QIcon
+from graph_module import GraphModule
+from gg_module import ggModule
+from rg_module import rgModule
+from serialhander import SerialHandler
+from report_card import ReportModule
+from WheelViz import WheelViz
+from label_module import DataTypeDialog
+from label_module import LabelModule
+from lap_module import LapModule
+from datetime import datetime
+from PyQt5.QtCore import Qt, QTimer
 from qdarkstyle.dark.palette import DarkPalette  # noqa: E402
 from qdarkstyle.light.palette import LightPalette  # noqa: E402
 from PyQt5.QtWidgets import QSizePolicy
-import shutil
 
-class CustomDashboard(QMainWindow):
+class Dashboard(QMainWindow):
     def __init__(self):
         super().__init__()
 
         # Initialize and start application
         self.sessions = []
         self.graph_modules = []
-        self.ggPlots = []
         self.video_modules = []
 
         self.new_session_data = {"pos": [], "size": [], "metadata": []}
@@ -146,13 +146,13 @@ class CustomDashboard(QMainWindow):
         self.graph_module_button.setMaximumWidth(200)
         self.graph_module_button.clicked.connect(self.create_graph_module)
 
-        self.gg_plot_button = QPushButton("Add GG PLOT")
+        self.gg_plot_button = QPushButton("Add GG Module")
         self.gg_plot_button.setMaximumWidth(200)
-        self.gg_plot_button.clicked.connect(self.create_gg_plt)
+        self.gg_plot_button.clicked.connect(self.create_gg_module)
 
-        self.ROLL_plot_button = QPushButton("Add Roll PLOT")
+        self.ROLL_plot_button = QPushButton("Add RG Module")
         self.ROLL_plot_button.setMaximumWidth(200)
-        self.ROLL_plot_button.clicked.connect(self.create_roll_plt)
+        self.ROLL_plot_button.clicked.connect(self.create_rg_module)
 
         self.label_module_button = QPushButton("Add Label Module")
         self.label_module_button.setMaximumWidth(200)
@@ -169,6 +169,10 @@ class CustomDashboard(QMainWindow):
         self.wheelviz_button = QPushButton("Add WheelViz")
         self.wheelviz_button.setMaximumWidth(200)
         self.wheelviz_button.clicked.connect(self.add_wheelviz)
+
+        self.lap_module_button = QPushButton("Add Lap Module")
+        self.lap_module_button.setMaximumWidth(200)
+        self.lap_module_button.clicked.connect(self.create_lap_module)
 
         self.radio_button = QRadioButton("USE SQL")
         self.radio_button.setChecked(False)
@@ -237,6 +241,7 @@ class CustomDashboard(QMainWindow):
         self.toolbar.addWidget(self.stop_reading_button)
         self.toolbar.addWidget(self.report_module_button)
         self.toolbar.addWidget(self.wheelviz_button)
+        self.toolbar.addWidget(self.lap_module_button)
         self.toolbar.addWidget(self.radio_button)
         self.toolbar.addWidget(self.write_sql_button)
 
@@ -451,19 +456,19 @@ class CustomDashboard(QMainWindow):
         sub_window.setGeometry(new_module.geometry())
         self.mdi_area.addSubWindow(sub_window)
         sub_window.show()
-    def create_gg_plt(self):
+
+    def create_gg_module(self):
         sub_window = QMdiSubWindow()
-        new_module = ggPlot(self.serialmonitor)
-        self.ggPlots.append(new_module)
+        new_module = ggModule(self.serialmonitor)
         sub_window.setAttribute(Qt.WA_DeleteOnClose)
         sub_window.setWidget(new_module)
         sub_window.setGeometry(new_module.geometry())
         self.mdi_area.addSubWindow(sub_window)
         sub_window.show()
-    def create_roll_plt(self):
+
+    def create_rg_module(self):
         sub_window = QMdiSubWindow()
-        new_module = rollPlot(self.serialmonitor)
-        self.ggPlots.append(new_module)
+        new_module = rgModule(self.serialmonitor)
         sub_window.setAttribute(Qt.WA_DeleteOnClose)
         sub_window.setWidget(new_module)
         sub_window.setGeometry(new_module.geometry())
@@ -497,6 +502,15 @@ class CustomDashboard(QMainWindow):
         sub_window.setAttribute(Qt.WA_DeleteOnClose)
         sub_window.setWidget(wheel_viz)
         sub_window.setGeometry(wheel_viz.geometry())
+        self.mdi_area.addSubWindow(sub_window)
+        sub_window.show()
+
+    def create_lap_module(self):
+        sub_window = QMdiSubWindow()
+        lap = LapModule(self.serialmonitor)
+        sub_window.setAttribute(Qt.WA_DeleteOnClose)
+        sub_window.setWidget(lap)
+        sub_window.setGeometry(lap.geometry())
         self.mdi_area.addSubWindow(sub_window)
         sub_window.show()
 
@@ -586,6 +600,6 @@ if __name__ == "__main__":
     app.setStyleSheet(qdarkstyle.load_stylesheet(palette=DarkPalette))
     with open("resources/stylesheets/dark_styling.qss", "r") as f:
         app.setStyleSheet(app.styleSheet() + f.read())
-    window = CustomDashboard()
+    window = Dashboard()
     window.show()
     sys.exit(app.exec_())

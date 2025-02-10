@@ -9,6 +9,7 @@ import qdarkstyle
 from qdarkstyle.dark.palette import DarkPalette  # noqa: E402
 from qdarkstyle.light.palette import LightPalette  # noqa: E402
 import pickle
+from utils import Utils
 
 class MathChannelsDialog(QDialog):
     def __init__(self, source : str):
@@ -95,43 +96,7 @@ class MathChannelsDialog(QDialog):
         parameters_layout.addWidget(self.unit_edit)
         parameters_group.setLayout(parameters_layout)
 
-        column_names = [
-            "Timestamp (ms)",
-            "X Acceleration (mG)",
-            "Y Acceleration (mG)",
-            "Z Acceleration (mG)",
-            "X Gyro (mdps)",
-            "Y Gyro (mdps)",
-            "Z Gyro (mdps)",
-            "Front Left Speed (mph)",
-            "Front Left Brake Temp (C)",
-            "Front Left Ambient Temperature (C)",
-            "Front Right Speed (mph)",
-            "Front Right Brake Temp (C)",
-            "Front Right Ambient Temperature (C)",
-            "Back Left Speed (mph)",
-            "Back Left Brake Temp (C)",
-            "Back Left Ambient Temperature (C)",
-            "Back Right Speed (mph)",
-            "Back Right Brake Temp (C)",
-            "Back Right Ambient Temperature (C)",
-            "Differential Speed (RPM)",
-            "DRS Toggle",
-            "Steering Angle (deg)",
-            "Throttle Input",
-            "Front Brake Pressure (BAR)" ,
-            "Rear Brake Pressure (BAR)",
-            "GPS Latitude (DD)",
-            "GPS Longitude (DD)",
-            "Battery Voltage (mV)",
-            "Current Draw (mA)",
-            "Front Right Shock Pot (mm)",
-            "Front Left Shock Pot (mm)",
-            "Back Right Shock Pot (mm)",
-            "Back Left Shock Pot (mm)",
-            "Lap Counter",
-            "Refresh Rate"
-        ]
+        column_names = Utils.data_format
 
         # Formula construction
         formula_group = QGroupBox("Formula construction")

@@ -15,6 +15,7 @@ from channel import MathChannelsDialog
 from sympy import symbols, sympify, lambdify
 from dataclasses import dataclass, field
 from typing import List, Optional, Callable, Dict
+from utils import Utils
 
 @dataclass
 class PlotItem:
@@ -27,7 +28,7 @@ class PlotItem:
     math_ch_str: Optional[str] = field(default=None)
 
 class GraphModule(QMainWindow):
-    def __init__(self, serialhander : SerialHandler):
+    def __init__(self, serialhandler : SerialHandler):
         super().__init__()
         self._cleanup_done = False
         self.setWindowTitle("Graph Module")
@@ -54,7 +55,7 @@ class GraphModule(QMainWindow):
         self.color_index = 0
         self.pen = pg.mkPen(color='red', width=1)
 
-        self.serialhandler = serialhander
+        self.serialhandler = serialhandler
         self.serialhandler.data_changed.connect(self.update_graph)
 
         self.layout.addWidget(self.plot_widget)
@@ -279,43 +280,7 @@ class GraphModule(QMainWindow):
         self.y_combo.clear()
 
         # Hardcoded list of column names
-        column_names = [
-            "Timestamp (ms)",
-            "X Acceleration (mG)",
-            "Y Acceleration (mG)",
-            "Z Acceleration (mG)",
-            "X Gyro (mdps)",
-            "Y Gyro (mdps)",
-            "Z Gyro (mdps)",
-            "Front Left Speed (mph)",
-            "Front Left Brake Temp (C)",
-            "Front Left Ambient Temperature (C)",
-            "Front Right Speed (mph)",
-            "Front Right Brake Temp (C)",
-            "Front Right Ambient Temperature (C)",
-            "Back Left Speed (mph)",
-            "Back Left Brake Temp (C)",
-            "Back Left Ambient Temperature (C)",
-            "Back Right Speed (mph)",
-            "Back Right Brake Temp (C)",
-            "Back Right Ambient Temperature (C)",
-            "Differential Speed (RPM)",
-            "DRS Toggle",
-            "Steering Angle (deg)",
-            "Throttle Input",
-            "Front Brake Pressure (BAR)" ,
-            "Rear Brake Pressure (BAR)",
-            "GPS Latitude (DD)",
-            "GPS Longitude (DD)",
-            "Battery Voltage (mV)",
-            "Current Draw (mA)",
-            "Front Right Shock Pot (mm)",
-            "Front Left Shock Pot (mm)",
-            "Back Right Shock Pot (mm)",
-            "Back Left Shock Pot (mm)",
-            "Lap Counter",
-            "Refresh Rate"
-        ]
+        column_names = Utils.data_format
         for column_name in column_names:
             self.x_combo.addItem(column_name)
             self.y_combo.addItem(column_name)

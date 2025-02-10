@@ -8,56 +8,21 @@ from channel import MathChannelsDialog
 import re
 from sympy import symbols, sympify, lambdify
 import numpy as np
+from utils import Utils
 
 
 class DataTypeDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Select Data Type")
-        self.data_types = {
-            "Timestamp (ms)": 0,
-            "X Acceleration (mG)": 0,
-            "Y Acceleration (mG)": 0,
-            "Z Acceleration (mG)": 0,
-            "X Gyro (mdps)": 0,
-            "Y Gyro (mdps)": 0,
-            "Z Gyro (mdps)": 0,
-            "Front Left Speed (mph)": 0,
-            "Front Left Brake Temp (C)": 0,
-            "Front Left Ambient Temperature (C)": 0,
-            "Front Right Speed (mph)": 0,
-            "Front Right Brake Temp (C)": 0,
-            "Front Right Ambient Temperature (C)": 0,
-            "Back Left Speed (mph)": 0,
-            "Back Left Brake Temp (C)": 0,
-            "Back Left Ambient Temperature (C)": 0,
-            "Back Right Speed (mph)": 0,
-            "Back Right Brake Temp (C)": 0,
-            "Back Right Ambient Temperature (C)": 0,
-            "Differential Speed (RPM)": 0,
-            "DRS Toggle": 0,
-            "Steering Angle (deg)": 0,
-            "Throttle Input": 0,
-            "Front Brake Pressure (BAR)": 0,
-            "Rear Brake Pressure (BAR)": 0,
-            "GPS Latitude (DD)": 0,
-            "GPS Longitude (DD)": 0,
-            "Battery Voltage (mV)": 0,
-            "Current Draw (mA)": 0,
-            "Front Right Shock Pot (mm)": 0,
-            "Front Left Shock Pot (mm)": 0,
-            "Back Right Shock Pot (mm)": 0,
-            "Back Left Shock Pot (mm)": 0,
-            "Lap Counter": 0,
-            "Refresh Rate": 0
-        }
+        self.data_types = Utils.data_format
 
         self.layout = QVBoxLayout(self)
         self.label = QLabel("Choose a data type:")
         self.layout.addWidget(self.label)
 
         self.data_type_combo = QComboBox(self)
-        self.data_type_combo.addItems(self.data_types.keys())
+        self.data_type_combo.addItems(self.data_types)
         self.layout.addWidget(self.data_type_combo)
         self.data_type_combo.currentIndexChanged.connect(self.accept)
 
@@ -85,7 +50,7 @@ class DataTypeDialog(QDialog):
 
     def return_selected(self):
         selected_text = self.data_type_combo.currentText()
-        return selected_text, self.data_types[selected_text], self.channel, self.channel_formula, self.channel_inputs
+        return selected_text, selected_text, self.channel, self.channel_formula, self.channel_inputs
 
     def open_math_channel(self):
         channel_dialog = MathChannelsDialog("label_module")

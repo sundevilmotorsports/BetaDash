@@ -4,13 +4,14 @@ import serial
 import time
 import random
 from collections import deque
-import polars as pl
 from serial import SerialException
 import sqlite3
 import binascii
+from utils import Utils
 
 class SerialHandler(QObject):
     data_changed = pyqtSignal(dict)
+    timing_data_changed = pyqtSignal(dict)
     def __init__(self, serial_port: str, baudrate: int, samplerate: int, buffertime: float):
         super().__init__()
         self.serial_port : str = serial_port #if windows should be a COM and then a number, usually COM3 or COM4, if linux/mac use '/dev/ttyUSB0' or such
@@ -26,98 +27,46 @@ class SerialHandler(QObject):
         self.buffer_time : float = buffertime ## seconds
         self.last_read_time : float = time.time() ## used for measure buffer
         self.start_time = time.time()
+        self.starting_year = time.localtime().tm_year
+        self.starting_month = time.localtime().tm_mon
+        self.starting_day = time.localtime().tm_mday
+        self.starting_hour = time.localtime().tm_hour
+        self.starting_minute = time.localtime().tm_min
+        self.starting_sec = time.localtime().tm_sec
+        self.starting_millis = 0
         self.last_time = self.start_time
         self.data_queue : dict[str, deque[float]] = {}
+        self.timing_data_queue : dict[str, deque[float]] = {}
         self.window_size = 20
         self.hertz_rates = [] 
         self.hertz_rate_sum = 0  
-        self.data : dict[str, list[float]] = {
-            "Timestamp (ms)": [],
-            "X Acceleration (mG)": [],
-            "Y Acceleration (mG)": [],
-            "Z Acceleration (mG)": [],
-            "X Gyro (mdps)": [],
-            "Y Gyro (mdps)": [],
-            "Z Gyro (mdps)": [],
-            "Front Left Speed (mph)": [],
-            "Front Left Brake Temp (C)": [],
-            "Front Left Ambient Temperature (C)": [],
-            "Front Right Speed (mph)": [],
-            "Front Right Brake Temp (C)": [],
-            "Front Right Ambient Temperature (C)": [],
-            "Back Left Speed (mph)": [],
-            "Back Left Brake Temp (C)": [],
-            "Back Left Ambient Temperature (C)": [],
-            "Back Right Speed (mph)": [],
-            "Back Right Brake Temp (C)": [],
-            "Back Right Ambient Temperature (C)": [],
-            "Differential Speed (RPM)": [],
-            "DRS Toggle": [],
-            "Steering Angle (deg)": [],
-            "Throttle Input": [],
-            "Front Brake Pressure (BAR)" : [],
-            "Rear Brake Pressure (BAR)": [],
-            "GPS Latitude (DD)": [],
-            "GPS Longitude (DD)": [],
-            "Battery Voltage (mV)": [],
-            "Current Draw (mA)": [],
-            "Front Right Shock Pot (mm)": [],
-            "Front Left Shock Pot (mm)": [],
-            "Back Right Shock Pot (mm)": [],
-            "Back Left Shock Pot (mm)": [],
-            "Lap Counter": [],
-            "Refresh Rate": []
-        }
-        self.temp_data : dict[str, float]= {
-            "Timestamp (ms)": 0,
-            "X Acceleration (mG)": 0,
-            "Y Acceleration (mG)": 0,
-            "Z Acceleration (mG)": 0,
-            "X Gyro (mdps)": 0,
-            "Y Gyro (mdps)": 0,
-            "Z Gyro (mdps)": 0,
-            "Front Left Speed (mph)": 0,
-            "Front Left Brake Temp (C)": 0,
-            "Front Left Ambient Temperature (C)": 0,
-            "Front Right Speed (mph)": 0,
-            "Front Right Brake Temp (C)": 0,
-            "Front Right Ambient Temperature (C)": 0,
-            "Back Left Speed (mph)": 0,
-            "Back Left Brake Temp (C)": 0,
-            "Back Left Ambient Temperature (C)": 0,
-            "Back Right Speed (mph)": 0,
-            "Back Right Brake Temp (C)": 0,
-            "Back Right Ambient Temperature (C)": 0,
-            "Differential Speed (RPM)": 0,
-            "DRS Toggle": 0,
-            "Steering Angle (deg)": 0,
-            "Throttle Input": 0,
-            "Front Brake Pressure (BAR)" : 0,
-            "Rear Brake Pressure (BAR)": 0,
-            "GPS Latitude (DD)": 0,
-            "GPS Longitude (DD)": 0,
-            "Battery Voltage (mV)": 0,
-            "Current Draw (mA)": 0,
-            "Front Right Shock Pot (mm)": 0,
-            "Front Left Shock Pot (mm)": 0,
-            "Back Right Shock Pot (mm)": 0,
-            "Back Left Shock Pot (mm)": 0,
-            "Lap Counter": 0,
-            "Refresh Rate": 0
-            }
-        #self.data = pl.DataFrame({col: pl.Series([], pl.Int64) for col in self.columns})
+        self.data = {}
+        for item in Utils.data_format:
+            self.data[item] = []
+
+        self.temp_data = {}
+        for item in Utils.data_format:
+            self.temp_data[item] = 0
         
         for column_name in self.data.keys():
             self.data_queue[column_name] = deque(maxlen=1000)
+
+        self.timing_data = {}
+        for item in Utils.timing_data_format:
+            self.timing_data[item] = []
+
+        self.temp_timing_data = {}
+        for item in Utils.timing_data_format:
+            self.temp_timing_data[item] = []
+
+        for column_name in self.timing_data.keys():
+            self.timing_data_queue[column_name] = deque(maxlen=1000)
     
     def set_sample_rate(self, rate):
         self.sample_rate = rate
 
     def set_buffer_time(self, time):
         self.buffer_time = time
-    
-    def getData(self, column_name):
-        return self.data[column_name]
 
     def update_data(self, temp_data : dict[str, float], last_read_time : float) -> None:
         #Serves two purposes, add temp_data to data repository (self.data) and emit the newly acquired data which will call update_graph in graph_module
@@ -135,16 +84,28 @@ class SerialHandler(QObject):
             self.last_read_time = time.time()
             #print("data changed emitted")
 
+    def update_timing_data(self, temp_timing_data : dict[str, float]) -> None:
+        #Serves two purposes, add temp_data to data repository (self.data) and emit the newly acquired data which will call update_graph in graph_module
+        for column_name, values in temp_timing_data.items():
+            if column_name in self.timing_data:
+                self.timing_data_queue[column_name].append(values)
+                self.timing_data[column_name].append(values)
+            else:
+                print("Invalid column name:", column_name)
+
+        self.timing_data_changed.emit(self.timing_data_queue)
+
     def _read_data(self) -> None: 
         mode = None
         hertz_count = 0
         hertz_rate_sum = 0
         hertz_rolling_average = 0
+        lap_timer_count = 0
         if self.serial_port == "null":
-            #print("Testing handler is reading")
             while self.is_reading:
                 self.clear_temp_data()
-                self.temp_data["Timestamp (ms)"] = time.time() - self.start_time
+                timestamp = time.time() - self.start_time
+                self.temp_data["Timestamp (ms)"] = timestamp
                 self.temp_data["X Acceleration (mG)"] = (random.random()-0.5)*2
                 self.temp_data["Y Acceleration (mG)"]= (random.random()-0.5)*2
                 self.temp_data["Z Acceleration (mG)"]= (random.random()-0.5)*2  
@@ -177,7 +138,23 @@ class SerialHandler(QObject):
                 self.temp_data["Front Left Shock Pot (mm)"] =(random.random() - .5) * 2
                 self.temp_data["Back Right Shock Pot (mm)"] = (random.random() - .5) * 2
                 self.temp_data["Back Left Shock Pot (mm)"] = (random.random() - .5) * 2
-                self.temp_data["Lap Counter"] = random.random()  
+
+                ### Fake Timing Gate
+                if random.random() < .02:
+                    lap_timer_count = (lap_timer_count + 1) % 5
+                    self.temp_timing_data["Gate Number"] = lap_timer_count
+                    self.temp_timing_data["Starting Year"] = self.starting_year
+                    self.temp_timing_data["Starting Month"] = self.starting_month
+                    self.temp_timing_data["Starting Day"] = self.starting_day
+                    self.temp_timing_data["Starting Hour"] = self.starting_hour
+                    self.temp_timing_data["Starting Minute"] = self.starting_minute
+                    self.temp_timing_data["Starting Second"] = self.starting_sec
+                    self.temp_timing_data["Starting Millis"] = self.starting_millis
+                    self.temp_timing_data["Now Millis"] = timestamp
+                    self.temp_timing_data["Now Millis Minus Starting Millis"] = timestamp - self.starting_millis
+                    #print(self.temp_timing_data)
+                    self.update_timing_data(self.temp_timing_data) 
+
                 time.sleep(.1) ## Controls Fake Data Refresh Rate
                 current_time = time.time()
                 hertz_rate = 1 / (current_time - self.last_time)
@@ -203,104 +180,55 @@ class SerialHandler(QObject):
                         print("Error in decoding : ", str(e))
                     match(mode):
                         case 0:
-                            self.temp_data["Timestamp (ms)"] = data[1]
-                            self.temp_data["X Acceleration (mG)"] = data[2]
-                            self.temp_data["Y Acceleration (mG)"]= data[3] 
-                            self.temp_data["Z Acceleration (mG)"]= data[4]    
-                            self.temp_data["X Gyro (mdps)"]= data[5]
-                            self.temp_data["Y Gyro (mdps)"]= data[6]  
-                            self.temp_data["Z Gyro (mdps)"]= data[7]  
-                            self.temp_data["Front Left Speed (mph)"]= data[8] 
-                            self.temp_data["Front Left Brake Temp (C)"] = data[9]  
-                            self.temp_data["Front Left Ambient Temperature (C)"]= data[10]
-                            self.temp_data["Front Right Speed (mph)"]= data[11]
-                            self.temp_data["Front Right Brake Temp (C)"]= data[12]
-                            self.temp_data["Front Right Ambient Temperature (C)"]= data[13] 
-                            self.temp_data["Back Left Speed (mph)"]= data[14]
-                            self.temp_data["Back Left Brake Temp (C)"]= data[15] 
-                            self.temp_data["Back Left Ambient Temperature (C)"]= data[16] 
-                            self.temp_data["Back Right Speed (mph)"]= data[17] 
-                            self.temp_data["Back Right Brake Temp (C)"]= data[18]
-                            self.temp_data["Back Right Ambient Temperature (C)"]= data[19] 
-                            self.temp_data["Differential Speed (RPM)"] = data[20]
-                            self.temp_data["DRS Toggle"] = data[21]
-                            self.temp_data["Steering Angle (deg)"] = data[22]
-                            self.temp_data["Throttle Input"] = data[23]
-                            self.temp_data["Front Brake Pressure (BAR)"] = data[24]
-                            self.temp_data["Rear Brake Pressure (BAR)"] = data[25]
-                            self.temp_data["GPS Latitude (DD)"] = data[26]
-                            self.temp_data["GPS Longitude (DD)"] = data[27]
-                            self.temp_data["Battery Voltage (mV)"] = data[28]
-                            self.temp_data["Current Draw (mA)"] = data[29]
-                            self.temp_data["Front Right Shock Pot (mm)"] = data[30]
-                            self.temp_data["Front Left Shock Pot (mm)"] = data[31]
-                            self.temp_data["Back Right Shock Pot (mm)"] = data[32]
-                            self.temp_data["Back Left Shock Pot (mm)"] = data[33]
-                            #self.temp_data["Lap Counter"] = data[34]
-                            #print("no error")
+                            for index, item in enumerate(Utils.telemetry_format):
+                                self.temp_data[item] = data[index]
+                            # self.temp_data["Timestamp (ms)"] = data[1]
+                            # self.temp_data["X Acceleration (mG)"] = data[2]
+                            # self.temp_data["Y Acceleration (mG)"]= data[3] 
+                            # self.temp_data["Z Acceleration (mG)"]= data[4]    
+                            # self.temp_data["X Gyro (mdps)"]= data[5]
+                            # self.temp_data["Y Gyro (mdps)"]= data[6]  
+                            # self.temp_data["Z Gyro (mdps)"]= data[7]  
+                            # self.temp_data["Front Left Speed (mph)"]= data[8] 
+                            # self.temp_data["Front Left Brake Temp (C)"] = data[9]  
+                            # self.temp_data["Front Left Ambient Temperature (C)"]= data[10]
+                            # self.temp_data["Front Right Speed (mph)"]= data[11]
+                            # self.temp_data["Front Right Brake Temp (C)"]= data[12]
+                            # self.temp_data["Front Right Ambient Temperature (C)"]= data[13] 
+                            # self.temp_data["Back Left Speed (mph)"]= data[14]
+                            # self.temp_data["Back Left Brake Temp (C)"]= data[15] 
+                            # self.temp_data["Back Left Ambient Temperature (C)"]= data[16] 
+                            # self.temp_data["Back Right Speed (mph)"]= data[17] 
+                            # self.temp_data["Back Right Brake Temp (C)"]= data[18]
+                            # self.temp_data["Back Right Ambient Temperature (C)"]= data[19] 
+                            # self.temp_data["Differential Speed (RPM)"] = data[20]
+                            # self.temp_data["DRS Toggle"] = data[21]
+                            # self.temp_data["Steering Angle (deg)"] = data[22]
+                            # self.temp_data["Throttle Input"] = data[23]
+                            # self.temp_data["Front Brake Pressure (BAR)"] = data[24]
+                            # self.temp_data["Rear Brake Pressure (BAR)"] = data[25]
+                            # self.temp_data["GPS Latitude (DD)"] = data[26]
+                            # self.temp_data["GPS Longitude (DD)"] = data[27]
+                            # self.temp_data["Battery Voltage (mV)"] = data[28]
+                            # self.temp_data["Current Draw (mA)"] = data[29]
+                            # self.temp_data["Front Right Shock Pot (mm)"] = data[30]
+                            # self.temp_data["Front Left Shock Pot (mm)"] = data[31]
+                            # self.temp_data["Back Right Shock Pot (mm)"] = data[32]
+                            # self.temp_data["Back Left Shock Pot (mm)"] = data[33]
                         case 1:
-                            self.temp_data["Timestamp (ms)"] = data[1]
-                            self.temp_data["X Acceleration (mG)"] = data[2]
-                            self.temp_data["Y Acceleration (mG)"]= data[3] 
-                            self.temp_data["Z Acceleration (mG)"]= data[4]    
-                            self.temp_data["X Gyro (mdps)"]= data[5]
-                            self.temp_data["Y Gyro (mdps)"]= data[6]  
-                            self.temp_data["Z Gyro (mdps)"]= data[7]  
-                            self.temp_data["Front Left Speed (mph)"]= data[8] 
-                            self.temp_data["Front Right Speed (mph)"]= data[9]
-                            self.temp_data["Back Left Speed (mph)"]= data[10]
-                            self.temp_data["Back Right Speed (mph)"]= data[11]  
-                            self.temp_data["Differential Speed (RPM)"] = data[12]
-                            self.temp_data["DRS Toggle"] = data[13]
-                            self.temp_data["Steering Angle (deg)"] = data[14]
-                            self.temp_data["Throttle Input"] = data[15]
-                            self.temp_data["Front Brake Pressure (BAR)"] = data[16]
-                            self.temp_data["Rear Brake Pressure (BAR)"] = data[17]
-                            self.temp_data["GPS Latitude (DD)"] = data[18]
-                            self.temp_data["GPS Longitude (DD)"] = data[19]
-                            self.temp_data["Front Right Shock Pot (mm)"] = data[20]
-                            self.temp_data["Front Left Shock Pot (mm)"] = data[21]
-                            self.temp_data["Back Right Shock Pot (mm)"] = data[22]
-                            self.temp_data["Back Left Shock Pot (mm)"] = data[23]
-                        case 2:
-                            self.temp_data["Timestamp (ms)"] = data[1]
-                            self.temp_data["X Acceleration (mG)"] = data[2]
-                            self.temp_data["Y Acceleration (mG)"]= data[3]  
-                            self.temp_data["Front Left Speed (mph)"]= data[4] 
-                            self.temp_data["Front Right Shock Pot (mm)"] = data[5]
-                            self.temp_data["Front Left Shock Pot (mm)"] = data[6]
-                            self.temp_data["Back Right Shock Pot (mm)"] = data[7]
-                            self.temp_data["Back Left Shock Pot (mm)"] = data[8]
-                        case 3:
-                            self.temp_data["Timestamp (ms)"] = data[1]
-                            self.temp_data["X Acceleration (mG)"] = data[2]
-                            self.temp_data["Y Acceleration (mG)"]= data[3]       
-                            self.temp_data["Front Left Speed (mph)"]= data[4] 
-                            self.temp_data["Back Left Speed (mph)"]= data[5]
-                            self.temp_data["Back Right Speed (mph)"]= data[6]  
-                            self.temp_data["Differential Speed (RPM)"] = data[7]
-                            self.temp_data["DRS Toggle"] = data[8]
-                            self.temp_data["Steering Angle (deg)"] = data[9]
-                            self.temp_data["Throttle Input"] = data[10]
-                            self.temp_data["Front Brake Pressure (BAR)"] = data[11]
-                            self.temp_data["Rear Brake Pressure (BAR)"] = data[12]
-                            self.temp_data["Front Right Shock Pot (mm)"] = data[13]
-                            self.temp_data["Front Left Shock Pot (mm)"] = data[14]
-                            self.temp_data["Back Right Shock Pot (mm)"] = data[15]
-                            self.temp_data["Back Left Shock Pot (mm)"] = data[16]
-                        case 4:
-                            self.temp_data["Timestamp (ms)"] = data[1]
-                            self.temp_data["X Acceleration (mG)"] = data[2]
-                            self.temp_data["Y Acceleration (mG)"]= data[3] 
-                            self.temp_data["Front Left Speed (mph)"]= data[4] 
-                            self.temp_data["Front Right Speed (mph)"]= data[5]
-                            self.temp_data["Back Left Speed (mph)"]= data[6]
-                            self.temp_data["Back Right Speed (mph)"]= data[7] 
-                            self.temp_data["Differential Speed (RPM)"] = data[8]
-                            self.temp_data["Steering Angle (deg)"] = data[9]
-                            self.temp_data["Throttle Input"] = data[10]
-                            self.temp_data["Front Brake Pressure (BAR)"] = data[11]
-                            self.temp_data["Rear Brake Pressure (BAR)"] = data[12]
+                            for index, item in enumerate(Utils.timing_data_format):
+                                self.temp_timing_data[item] = data[index]
+                            # self.temp_timing_data["Gate Number"] = data[1]
+                            # self.temp_timing_data["Starting Year"] = data[2]
+                            # self.temp_timing_data["Starting Month"] = data[3]
+                            # self.temp_timing_data["Starting Day"] = data[4]
+                            # self.temp_timing_data["Starting Hour"] = data[5]
+                            # self.temp_timing_data["Starting Minute"] = data[6]
+                            # self.temp_timing_data["Starting Second"] = data[7]
+                            # self.temp_timing_data["Starting Millis"] = data[8]
+                            # self.temp_timing_data["Now Millis"] = data[9]
+                            # self.temp_timing_data["Now Minus Starting Millis"] = data[10]
+                            self.update_timing_data(self.temp_timing_data)
                         case _:
                             print("SERIALHANDLER IS FAILING ON ALL PROPORTIONS")
                     current_time = time.time()
@@ -344,82 +272,16 @@ class SerialHandler(QObject):
         print("Serial Input Buffer Cleared")
 
     def clear_temp_data(self):
-        self.temp_data : dict[str, float]= {
-            "Timestamp (ms)": 0,
-            "X Acceleration (mG)": 0,
-            "Y Acceleration (mG)": 0,
-            "Z Acceleration (mG)": 0,
-            "X Gyro (mdps)": 0,
-            "Y Gyro (mdps)": 0,
-            "Z Gyro (mdps)": 0,
-            "Front Left Speed (mph)": 0,
-            "Front Left Brake Temp (C)": 0,
-            "Front Left Ambient Temperature (C)": 0,
-            "Front Right Speed (mph)": 0,
-            "Front Right Brake Temp (C)": 0,
-            "Front Right Ambient Temperature (C)": 0,
-            "Back Left Speed (mph)": 0,
-            "Back Left Brake Temp (C)": 0,
-            "Back Left Ambient Temperature (C)": 0,
-            "Back Right Speed (mph)": 0,
-            "Back Right Brake Temp (C)": 0,
-            "Back Right Ambient Temperature (C)": 0,
-            "Differential Speed (RPM)": 0,
-            "DRS Toggle": 0,
-            "Steering Angle (deg)": 0,
-            "Throttle Input": 0,
-            "Front Brake Pressure (BAR)" : 0,
-            "Rear Brake Pressure (BAR)": 0,
-            "GPS Latitude (DD)": 0,
-            "GPS Longitude (DD)": 0,
-            "Battery Voltage (mV)": 0,
-            "Current Draw (mA)": 0,
-            "Front Right Shock Pot (mm)": 0,
-            "Front Left Shock Pot (mm)": 0,
-            "Back Right Shock Pot (mm)": 0,
-            "Back Left Shock Pot (mm)": 0,
-            "Lap Counter": 0,
-            "Refresh Rate": 0
-            }
+        del self.temp_data
+        self.temp_data = {}
+        for item in Utils.data_format:
+            self.temp_data[item] = 0
 
     def clear_data(self):
-        self.data : dict[str, list[float]] = {
-            "Timestamp (ms)": [],
-            "X Acceleration (mG)": [],
-            "Y Acceleration (mG)": [],
-            "Z Acceleration (mG)": [],
-            "X Gyro (mdps)": [],
-            "Y Gyro (mdps)": [],
-            "Z Gyro (mdps)": [],
-            "Front Left Speed (mph)": [],
-            "Front Left Brake Temp (C)": [],
-            "Front Left Ambient Temperature (C)": [],
-            "Front Right Speed (mph)": [],
-            "Front Right Brake Temp (C)": [],
-            "Front Right Ambient Temperature (C)": [],
-            "Back Left Speed (mph)": [],
-            "Back Left Brake Temp (C)": [],
-            "Back Left Ambient Temperature (C)": [],
-            "Back Right Speed (mph)": [],
-            "Back Right Brake Temp (C)": [],
-            "Back Right Ambient Temperature (C)": [],
-            "Differential Speed (RPM)": [],
-            "DRS Toggle": [],
-            "Steering Angle (deg)": [],
-            "Throttle Input": [],
-            "Front Brake Pressure (BAR)" : [],
-            "Rear Brake Pressure (BAR)": [],
-            "GPS Latitude (DD)": [],
-            "GPS Longitude (DD)": [],
-            "Battery Voltage (mV)": [],
-            "Current Draw (mA)": [],
-            "Front Right Shock Pot (mm)": [],
-            "Front Left Shock Pot (mm)": [],
-            "Back Right Shock Pot (mm)": [],
-            "Back Left Shock Pot (mm)": [],
-            "Lap Counter": [],
-            "Refresh Rate": []
-        }
+        del self.data
+        self.data = {}
+        for item in Utils.data_format:
+            self.data[item] = []
         
     def insert_data_to_db(self, db_name : str):
         connection = sqlite3.connect(db_name)
@@ -434,4 +296,3 @@ class SerialHandler(QObject):
         
         connection.commit()
         self.clear_data()
-                
