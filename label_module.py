@@ -1,15 +1,86 @@
-from PyQt5.QtWidgets import (
-    QWidget, QHBoxLayout, QVBoxLayout, QLabel, QDialog, QComboBox, QPushButton
-)
-from PyQt5.QtCore import pyqtSlot
+from PyQt5.QtWidgets import *
+from PyQt5.QtCore import pyqtSlot, QThread, pyqtSignal
 from PyQt5.QtGui import QFont
 from serialhander import SerialHandler
 from channel import MathChannelsDialog
 import re
-from sympy import symbols, sympify, lambdify
+from sympy import sympify, lambdify
 import numpy as np
 from utils import Utils
 
+class LabelModuleWorker(QThread):
+    value_updated = pyqtSignal(float)
+
+    def __init__(self, serialhandler, data_type, channel, channel_inputs):
+        super().__init__()
+        self.serialhandler = serialhandler
+        self.data_type = data_type
+        self.channel = channel
+        self.channel_inputs = channel_inputs
+        self.running = True
+        self.serialhandler.data_changed.connect(self.process_data)
+
+    @pyqtSlot(dict)
+    def process_data(self, new_data):
+        if not self.running:
+            return
+
+        try:
+            if self.channel:
+                column_data = []
+                for name in self.channel_inputs:
+                    column_data.append(np.asarray(new_data[name][-1]))
+                latest_val = self.channel(*column_data)
+            else:
+                latest_val = float(new_data[self.data_type][-1])
+            
+            self.value_updated.emit(latest_val)
+        except Exception as e:
+            print(f"Error processing data: {e}")
+
+    def stop(self):
+        self.running = False
+        self.serialhandler.data_changed.disconnect(self.process_data)
+        self.quit()
+        self.wait()
+
+class MathChannelWorker(QThread):
+    channel_created = pyqtSignal(object, list, list)
+
+    def __init__(self, input_formulas):
+        super().__init__()
+        self.input_formulas = input_formulas
+        self.running = True
+
+    def run(self):
+        lambda_func_list, unique_variables_list = self.create_lambda_with_variables(self.input_formulas)
+        self.channel_created.emit(lambda_func_list, self.input_formulas, unique_variables_list)
+
+    def create_lambda_with_variables(self, input_formulas):
+        def replace_bracket(match):
+            var_name = match.group(1)
+            return variable_map[var_name]
+
+        lambda_func_list = []
+        unique_variables_list = []
+
+        for formula in input_formulas:
+            matches = re.findall(r'\[([^\]]+)\]', formula)
+            unique_variables = list(set(matches))
+            variable_map = {var: f"var_{i}" for i, var in enumerate(unique_variables)}
+            modified_string = re.sub(r'\[([^\]]+)\]', replace_bracket, formula)
+
+            sympy_expr = sympify(modified_string)
+            lambda_func = lambdify(list(variable_map.values()), sympy_expr)
+
+            lambda_func_list.append(lambda_func)
+            unique_variables_list.append(unique_variables)
+
+        return lambda_func_list, unique_variables_list
+    
+    def stop(self):
+        self.quit()
+        self.wait()
 
 class DataTypeDialog(QDialog):
     def __init__(self, parent=None):
@@ -33,20 +104,12 @@ class DataTypeDialog(QDialog):
         self.math_channel_button.clicked.connect(self.open_math_channel)
         self.math_channel_layout = QHBoxLayout()
         self.math_channel_layout.addWidget(self.math_channel_button)
-        self.math_channel_layout.setContentsMargins(0, 0, 0, 0)
-        self.math_channel_layout.setStretch(1, 1)
         self.layout.addLayout(self.math_channel_layout)
-
-        # self.other_label = QLabel("\n")
-        # self.layout.addWidget(self.other_label)
-
-        # self.ok_button = QPushButton("OK")
-        # self.ok_button.clicked.connect(self.accept)
-        # self.layout.addWidget(self.ok_button)
 
         self.channel = None
         self.channel_formula = []
         self.channel_inputs = []
+        self.channel_worker = None
 
     def return_selected(self):
         selected_text = self.data_type_combo.currentText()
@@ -55,36 +118,25 @@ class DataTypeDialog(QDialog):
     def open_math_channel(self):
         channel_dialog = MathChannelsDialog("label_module")
         if channel_dialog.exec() == QDialog.Accepted:
-            self.channel = channel_dialog.return_formula()
-            self.channel, self.channel_formula, self.channel_inputs = self.create_lambda_with_variables(self.channel)
-            # convert from list of size 1 to just func
-            if len(self.channel) >= 1:
-                self.channel = self.channel[0]
-                self.channel_formula = self.channel_formula[0]
-                self.channel_inputs = self.channel_inputs[0]
-            self.accept()
-       
-    def create_lambda_with_variables(self, input_formulas):
-        def replace_bracket(match):
-            var_name = match.group(1)
-            return variable_map[var_name]
+            self.channel_worker = MathChannelWorker(channel_dialog.return_formula())
+            self.channel_worker.channel_created.connect(self.on_channel_created)
+            self.channel_worker.start()
 
-        lambda_func_list = []
-        unique_variables_list = []
+    def on_channel_created(self, channels, formulas, inputs):
+        self.channel = channels[0]
+        self.channel_formula = formulas[0]
+        self.channel_inputs = inputs[0]
+        self.accept()
 
-        for formula in input_formulas:
-            matches = re.findall(r'\[([^\]]+)\]', formula)
-            unique_variables = list(set(matches))
-            variable_map = {var: f"var_{i}" for i, var in enumerate(unique_variables)}
-            modified_string = re.sub(r'\[([^\]]+)\]', replace_bracket, formula)
-            sympy_expr = sympify(modified_string)
-            lambda_func = lambdify(list(variable_map.values()), sympy_expr)
-            lambda_func_list.append(lambda_func)
-            unique_variables_list.append(unique_variables)
-        return lambda_func_list, input_formulas, unique_variables_list
+    def closeEvent(self, event):
+        if self.channel_worker and self.channel_worker.isRunning():
+            self.channel_worker.quit()
+            self.channel_worker.wait()
 
+        event.accept()  
+    
 class LabelModule(QWidget):
-    def __init__(self, serialhandler: SerialHandler, data_type: str, channel:str = None, channel_formula:list = None, channel_inputs:list = None):
+    def __init__(self, serialhandler: SerialHandler, data_type: str, channel:str=None, channel_formula:list=None, channel_inputs:list=None):
         super().__init__()
         self.serialhandler = serialhandler
         self.data_type = data_type
@@ -94,58 +146,47 @@ class LabelModule(QWidget):
 
         self.setGeometry(200, 100, 400, 100)
         self.layout = QVBoxLayout(self)
-        
+
         if self.channel_formula:
             self.data_type_label = QLabel(self.channel_formula)
-            self.data_type_label.setStyleSheet("font-size: 14px;")
-            self.layout.addWidget(self.data_type_label)
         else:
             self.data_type_label = QLabel(self.data_type)
-            self.data_type_label.setStyleSheet("font-size: 14px;")
-            self.layout.addWidget(self.data_type_label)
+
+        self.data_type_label.setStyleSheet("font-size: 14px;")
+        self.layout.addWidget(self.data_type_label)
 
         self.label = QLabel()
         self.label.setStyleSheet("font-size: 28px;")
         self.layout.addWidget(self.label)
-        
-        self.serialhandler.data_changed.connect(self.update_label)
 
-    @pyqtSlot(dict)
-    def update_label(self, new_data: dict):
-        if self.channel:
-            column_data = [np.asarray(new_data[name][-1]) for name in self.channel_inputs]
-            latest_val = self.channel(*column_data)
-            self.label.setText(f"{latest_val:.2f}")
-        else:
-            latest_val = new_data[self.data_type][-1]
-            self.label.setText(f"{latest_val:.2f}")
+        self.worker = LabelModuleWorker(serialhandler, data_type, channel, channel_inputs)
+        self.worker.value_updated.connect(self.update_label)
+        self.worker.start()
+
+    @pyqtSlot(float)
+    def update_label(self, latest_val):
+        self.label.setText(f"{latest_val:.2f}")
 
     def get_info(self) -> dict:
-        """
-        Returns a dictionary describing the current state,
-        so the dashboard can save/restore it.
-        """
         return {
-            'type': 'LabelModule',      # to identify the module type
+            'type': 'LabelModule',
             'data_type': self.data_type
-            # If you also want position/size:
-            # 'pos': (self.x(), self.y()),
-            # 'size': (self.width(), self.height())
         }
 
     def set_info(self, info: dict):
-        """
-        Takes a state dictionary (like one generated by get_info)
-        and applies it to this LabelModule, so it restores its state.
-        """
         if 'data_type' in info:
             self.data_type = info['data_type']
 
-        # If you also store geometry, you can restore it:
-        # if 'pos' in info and len(info['pos']) == 2:
-        #     self.move(info['pos'][0], info['pos'][1])
-        # if 'size' in info and len(info['size']) == 2:
-        #     self.resize(info['size'][0], info['size'][1])
+    def closeEvent(self, event):
+        try:
+            self.serialhandler.data_changed.disconnect(self.update_label)
+        except TypeError as e:
+            print("Ran into error trying to exit", e)
 
-        # Optionally trigger a label update if your data already exists
-        self.update_label(self.serialhandler.data)
+        if hasattr(self, 'worker'):
+            self.worker.stop()
+
+        if hasattr(self, 'channel_worker') and self.channel_worker.isRunning():
+            self.channel_worker.stop()
+
+        event.accept()

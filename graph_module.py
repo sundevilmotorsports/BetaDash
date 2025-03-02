@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import *
-from PyQt5.QtCore import Qt, pyqtSlot, QPointF
+from PyQt5.QtCore import Qt, pyqtSlot, pyqtSignal, QPointF, QThread
 from PyQt5.QtGui import QColor, QPen, QFont, QPalette
 from pyqtgraph.Qt import QtCore
 from pyqtgraph.Qt import QtGui
@@ -16,6 +16,45 @@ from sympy import symbols, sympify, lambdify
 from dataclasses import dataclass, field
 from typing import List, Optional, Callable, Dict
 from utils import Utils
+
+class MathChannelWorker(QThread):
+    channel_created = pyqtSignal(object, list, list)
+
+    def __init__(self, input_formulas):
+        super().__init__()
+        self.input_formulas = input_formulas
+        self.running = True
+
+    def run(self):
+        lambda_func_list, unique_variables_list = self.create_lambda_with_variables(self.input_formulas)
+        self.channel_created.emit(lambda_func_list, self.input_formulas, unique_variables_list)
+        # self.stop()
+
+    def create_lambda_with_variables(self, input_formulas):
+        def replace_bracket(match):
+            var_name = match.group(1)
+            return variable_map[var_name]
+
+        lambda_func_list = []
+        unique_variables_list = []
+
+        for formula in input_formulas:
+            matches = re.findall(r'\[([^\]]+)\]', formula)
+            unique_variables = list(set(matches))
+            variable_map = {var: f"var_{i}" for i, var in enumerate(unique_variables)}
+            modified_string = re.sub(r'\[([^\]]+)\]', replace_bracket, formula)
+
+            sympy_expr = sympify(modified_string)
+            lambda_func = lambdify(list(variable_map.values()), sympy_expr)
+
+            lambda_func_list.append(lambda_func)
+            unique_variables_list.append(unique_variables)
+
+        return lambda_func_list, unique_variables_list
+    
+    def stop(self):
+        self.quit()
+        self.wait()
 
 @dataclass
 class PlotItem:
@@ -65,7 +104,7 @@ class GraphModule(QMainWindow):
         self.sidebox.setAlignment(Qt.AlignTop)
         self.x_combo = QComboBox()
         self.y_combo = CheckableComboBox()
-        self.y_combo.model().dataChanged.connect(lambda: self.modify_plots(False, None))
+        self.y_combo.model().dataChanged.connect(lambda: self.modify_plots([],[],[]))
         self.y_combo.setFixedHeight(25)
 
         #self.x_combo.currentIndexChanged.connect(self.set_labels)
@@ -161,29 +200,21 @@ class GraphModule(QMainWindow):
         self._cleanup_done = True
         #print("Cleanup complete.")
 
+    # def open_math_channel(self):
+    #     channel_dialog = MathChannelsDialog("graph_module")
+    #     if channel_dialog.exec() == QDialog.Accepted:
+    #         self.modify_plots(True, channel_dialog.return_formula())
+
     def open_math_channel(self):
         channel_dialog = MathChannelsDialog("graph_module")
         if channel_dialog.exec() == QDialog.Accepted:
-            self.modify_plots(True, channel_dialog.return_formula())
-       
-    def create_lambda_with_variables(self, input_formulas):
-        def replace_bracket(match):
-            var_name = match.group(1)
-            return variable_map[var_name]
+            self.channel_worker = MathChannelWorker(channel_dialog.return_formula())
+            self.channel_worker.channel_created.connect(self.on_channel_created)
+            self.channel_worker.start()
 
-        lambda_func_list = []
-        unique_variables_list = []
+    def on_channel_created(self, lambda_func_list, input_formulas, unique_variables_list):
+        self.modify_plots(lambda_func_list, input_formulas, unique_variables_list)
 
-        for formula in input_formulas:
-            matches = re.findall(r'\[([^\]]+)\]', formula)
-            unique_variables = list(set(matches))
-            variable_map = {var: f"var_{i}" for i, var in enumerate(unique_variables)}
-            modified_string = re.sub(r'\[([^\]]+)\]', replace_bracket, formula)
-            sympy_expr = sympify(modified_string)
-            lambda_func = lambdify(list(variable_map.values()), sympy_expr)
-            lambda_func_list.append(lambda_func)
-            unique_variables_list.append(unique_variables)
-        return lambda_func_list, input_formulas, unique_variables_list
             
     def open_color_dialog(self):
         color = QColorDialog.getColor()
@@ -296,23 +327,27 @@ class GraphModule(QMainWindow):
         x_values = x_values[-queue_size:]
 
         for plot_item in self.plot_items.values():
-            if not isinstance(plot_item.y_column, list):
+            if not isinstance(plot_item.y_column, list): # if y_column is a list in the plot item object then its a math channel
                 y_values = np.asarray(new_data[plot_item.y_column]).flatten()
                 y_values = y_values[-queue_size:]
 
                 plot_item.data_item.setData(x=x_values, y=y_values)
             else:
                 func = plot_item.math_ch
-                column_data = [np.asarray(new_data[name])[-queue_size:] for name in plot_item.y_column]
-                plot_item.data_item.setData(x=x_values, y=func(*column_data))
+                column_data = []
+                for name in plot_item.y_column:
+                    column_data.append(np.asarray(new_data[name][-queue_size:]))
+                # column_data = [np.asarray(new_data[name])[-queue_size:] for name in plot_item.y_column]
+                if column_data:
+                    plot_item.data_item.setData(x=x_values, y=func(*column_data))
+                else:
+                    y_values = [func(*column_data) for x in x_values]
+                    plot_item.data_item.setData(x=x_values, y=y_values)
+                
 
-    def modify_plots(self, update : bool, return_formulas : list):
+    def modify_plots(self, lambda_func_list : list, input_formulas : list, unique_variables_list : list):
         y_columns = self.y_combo.currentData()
-        if update:
-            func_list, func_list_str, input_variables_list = self.create_lambda_with_variables(return_formulas)
-            self.math_channels = func_list_str
-        else: 
-            func_list, func_list_str, input_variables_list = [], [], []
+        func_list, func_list_str, input_variables_list = lambda_func_list, input_formulas, unique_variables_list
 
         for name in list(self.plot_items.keys()):
             plot_item = self.plot_items[name]

@@ -1,19 +1,5 @@
 import sys
-from PyQt5.QtWidgets import (
-    QMainWindow,
-    QMainWindow,
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QLabel,
-    QComboBox,
-    QPushButton,
-    QStatusBar,
-    QCheckBox,
-    QApplication,
-    QSpacerItem,
-    QSizePolicy
-)
+from PyQt5.QtWidgets import *
 from PyQt5.QtCore import Qt, pyqtSlot
 from PyQt5.QtGui import QImage, QPixmap, QTransform, QFont, QBrush, QColor
 import pyqtgraph as pg
@@ -27,16 +13,6 @@ class WheelViz(QWidget):
         self._cleanup_done = False
         self.setWindowTitle("Wheel Viz")
         self.setGeometry(0, 0, 700, 550)
-        #self.menubar = self.menuBar()
-        #self.menubar.setStyleSheet(
-        #    "background-color: #333; color: white; font-size: 14px;"
-        #)
-        #self.menubar.setStyleSheet("QMenu::item:selected { background-color: #555; }")
-        #self.menubar.setStyleSheet("QMenu::item:pressed { background-color: #777; }")
-
-        #self.central_widget = QWidget()
-        #self.setCentralWidget(self.central_widget)
-        #self.central_widget.setStyleSheet("background-color: black;")
 
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
@@ -87,7 +63,6 @@ class WheelViz(QWidget):
         self.front_right_combo.addItems(self.data_options)
         self.rear_right_combo.addItems(self.data_options)
 
-        #self.layout.addLayout(self.left2_layout)
         self.layout2.addLayout(self.left_layout)
         self.layout2.addLayout(self.left2_layout)
         self.layout2.addWidget(self.image_label)

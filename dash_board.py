@@ -10,6 +10,7 @@ import qdarkstyle
 import shutil
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import QIcon
+from PyQt5.QtCore import Qt, QTimer, QThread
 from graph_module import GraphModule
 from gg_module import ggModule
 from rg_module import rgModule
@@ -20,7 +21,6 @@ from label_module import DataTypeDialog
 from label_module import LabelModule
 from lap_module import LapModule
 from datetime import datetime
-from PyQt5.QtCore import Qt, QTimer
 from qdarkstyle.dark.palette import DarkPalette  # noqa: E402
 from qdarkstyle.light.palette import LightPalette  # noqa: E402
 from PyQt5.QtWidgets import QSizePolicy
