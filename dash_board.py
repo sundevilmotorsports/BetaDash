@@ -15,7 +15,7 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import Qt, QTimer, QThread
 from PyQt5.QtWidgets import QSizePolicy
-from pyqt_switch import PyQtSwitch
+from pyqtswitch import PyQtSwitch
 # Live Module Imports
 from live_modules.graph_module import GraphModule
 from live_modules.gg_module import ggModule

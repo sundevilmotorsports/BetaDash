@@ -1,5 +1,18 @@
 import pandas as pd
 import pickle
+from dataclasses import dataclass
+
+@dataclass
+class Session:
+    date : str
+    time : str
+    driver : str
+    car : str
+    track : str
+    data : pd.DataFrame
+
+class SessionManager():
+    pass
 
 # Array that holds different sessions accessible by the day it occurred
 active_sessions = []
