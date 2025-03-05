@@ -1,3 +1,4 @@
+# General Imports
 import sys
 import os
 import serial.tools.list_ports
@@ -8,22 +9,33 @@ import time
 import sqlite3
 import qdarkstyle
 import shutil
+from datetime import datetime
+# PyQT Imports
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import Qt, QTimer, QThread
-from graph_module import GraphModule
-from gg_module import ggModule
-from rg_module import rgModule
+from PyQt5.QtWidgets import QSizePolicy
+from pyqt_switch import PyQtSwitch
+# Live Module Imports
+from live_modules.graph_module import GraphModule
+from live_modules.gg_module import ggModule
+from live_modules.rg_module import rgModule
 from serialhander import SerialHandler
-from report_card import ReportModule
-from WheelViz import WheelViz
-from label_module import DataTypeDialog
-from label_module import LabelModule
-from lap_module import LapModule
-from datetime import datetime
+from live_modules.report_card import ReportModule
+from live_modules.WheelViz import WheelViz
+from live_modules.label_module import DataTypeDialog
+from live_modules.label_module import LabelModule
+from live_modules.lap_module import LapModule
+# Post Module Imports
+from post_modules.csv_import import CSVImport
+from post_modules.graph_module import PostGraphModule
+from post_modules.video_module import PostVideoPlayer
+from post_modules.timestamper import TimeStamper
+from post_modules.lap_module import PostLapModule
+from post_modules.session import Session, add_session, get_names, set_session, get_active_sessions
+# Styling Imports
 from qdarkstyle.dark.palette import DarkPalette  # noqa: E402
 from qdarkstyle.light.palette import LightPalette  # noqa: E402
-from PyQt5.QtWidgets import QSizePolicy
 
 class Dashboard(QMainWindow):
     def __init__(self):
@@ -62,12 +74,12 @@ class Dashboard(QMainWindow):
         # After loading sessions from disk, check if none exist
 
 
-        # If you have a 'handler' variable referenced, make sure it's defined or remove this block
-        # For clarity, removing references to 'handler.add_session(data)'
-        # since 'handler' is not defined here. If you have a global 'handler', define it before use.
+        # If you have a 'Session' variable referenced, make sure it's defined or remove this block
+        # For clarity, removing references to 'add_session(data)'
+        # since 'Session' is not defined here. If you have a global 'Session', define it before use.
         # for file in data_files:
         #     data = pickle.load(open(file, "rb"))
-        #     handler.add_session(data)
+        #     add_session(data)
 
         self.setWindowTitle("Sun Devil Motorsports Beta Data Dashboard")
         # self.setStyleSheet("""QMainWindow::title {
@@ -86,7 +98,6 @@ class Dashboard(QMainWindow):
         self.layout = QVBoxLayout()     
         self.toolbar = QHBoxLayout()
         self.layout.addLayout(self.toolbar)
-
 
         # Attempt to connect to a serial port
         try:
@@ -114,75 +125,8 @@ class Dashboard(QMainWindow):
                     break
                 except Exception as e:
                     print(f"Error connecting to port index {num-1}: {e}")
-                    
-            # Iterate through each available port and try to connect
-            '''
-            for port in available_ports:
-                try:
-                    print(f"Attempt to connect to {port.name}? [y/n]")
-                    if input() == 'y':
-                        self.serialmonitor = SerialHandler(port.name, 9600, 1, .02)
-                        self.reading_thread = threading.Thread(target=self.serial_read_loop)
-                        self.reading_thread.daemon = True
-                        self.reading_thread.start()
-                        #self.serialmonitor.data_changed.connect(self.update_all_graphs)
-                        print(f"Connected to {port.name}")
-                        break  # Break out of the loop if connection is successful
-                except Exception as e:
-                    print(f"Error connecting to {port.name}: {e}")
-            else:
-                print("No open serial ports found. Starting testing SerialHandler")
-                self.serialmonitor = SerialHandler("null", 9600, 1, 0.1)
-                self.reading_thread = threading.Thread(target=self.serial_read_loop)
-                self.reading_thread.daemon = True
-                self.reading_thread.start()
-            '''
-
         except Exception as e:
             print(f"Error: {e}")
-
-        # Buttons
-        self.graph_module_button = QPushButton("Add Graph Module")
-        self.graph_module_button.setMaximumWidth(200)
-        self.graph_module_button.clicked.connect(self.create_graph_module)
-
-        self.gg_plot_button = QPushButton("Add GG Module")
-        self.gg_plot_button.setMaximumWidth(200)
-        self.gg_plot_button.clicked.connect(self.create_gg_module)
-
-        self.ROLL_plot_button = QPushButton("Add RG Module")
-        self.ROLL_plot_button.setMaximumWidth(200)
-        self.ROLL_plot_button.clicked.connect(self.create_rg_module)
-
-        self.label_module_button = QPushButton("Add Label Module")
-        self.label_module_button.setMaximumWidth(200)
-        self.label_module_button.clicked.connect(self.create_label_module)
-        
-        self.stop_reading_button = QPushButton("Stop Serial Read")
-        self.stop_reading_button.setMaximumWidth(200)
-        self.stop_reading_button.clicked.connect(self.stop_serial_read)
-
-        self.report_module_button = QPushButton("Add Report Card")
-        self.report_module_button.setMaximumWidth(200)
-        self.report_module_button.clicked.connect(self.create_report_module)
-
-        self.wheelviz_button = QPushButton("Add WheelViz")
-        self.wheelviz_button.setMaximumWidth(200)
-        self.wheelviz_button.clicked.connect(self.add_wheelviz)
-
-        self.lap_module_button = QPushButton("Add Lap Module")
-        self.lap_module_button.setMaximumWidth(200)
-        self.lap_module_button.clicked.connect(self.create_lap_module)
-
-        self.radio_button = QRadioButton("USE SQL")
-        self.radio_button.setChecked(False)
-        self.radio_button.clicked.connect(self.create_sql)
-        self.radio_button.clicked.connect(self.toggle_db_write)
-
-        self.write_sql_button = QPushButton("Write Data to DB")
-        self.write_sql_button.setDisabled(True)
-        self.write_sql_button.setMaximumWidth(200)
-        self.write_sql_button.clicked.connect(self.write_sql)
 
         # Replace the combo box and load session button with a QTabWidget
         self.tab_widget = QTabWidget()
@@ -208,9 +152,6 @@ class Dashboard(QMainWindow):
         self.tab_widget.tabCloseRequested.connect(self.close_session_tab)
         #self.tab_widget.currentChanged.connect(self.load_session_from_tab)
         self.tab_widget.currentChanged.connect(self.on_tab_changed)
-        self.save_dashboard_button = QPushButton("Save Dashboard")
-        self.save_dashboard_button.setMaximumWidth(200)
-        self.save_dashboard_button.clicked.connect(self.save_dashboard)
 
         self.plus_button = QToolButton()
         self.plus_button.setText("+")
@@ -220,34 +161,16 @@ class Dashboard(QMainWindow):
         # Connect its clicked signal to the same "create_new_session" method
         self.plus_button.clicked.connect(self.create_new_session)
 
-
         # Add tab widget below toolbar
         self.layout.addWidget(self.tab_widget)
-
 
         # Add tabs for previously saved sessions
         for session in self.sessions:
             session_name = session["time"].strftime("%m/%d/%Y, %H:%M:%S")
             self.tab_widget.addTab(QWidget(), session_name)
 
-        self.refresh_rate_label = QLabel("Hertz: ")
-        self.refresh_rate_label.setStyleSheet("background-color: #455364;")
-        self.serialmonitor.data_changed.connect(self.update_refresh_rate)
 
-        self.toolbar.addWidget(self.graph_module_button)
-        self.toolbar.addWidget(self.gg_plot_button)
-        self.toolbar.addWidget(self.ROLL_plot_button)
-        self.toolbar.addWidget(self.label_module_button)
-        self.toolbar.addWidget(self.stop_reading_button)
-        self.toolbar.addWidget(self.report_module_button)
-        self.toolbar.addWidget(self.wheelviz_button)
-        self.toolbar.addWidget(self.lap_module_button)
-        self.toolbar.addWidget(self.radio_button)
-        self.toolbar.addWidget(self.write_sql_button)
-
-        self.toolbar.addWidget(self.save_dashboard_button)
-        self.toolbar.addStretch(1)
-        self.toolbar.addWidget(self.refresh_rate_label)
+        self.add_live_modules()
         self.layout.addWidget(self.mdi_area)
 
         self.central_widget = QWidget()
@@ -260,6 +183,47 @@ class Dashboard(QMainWindow):
         if not self.sessions:
             self.create_new_session()
 
+        # ------------------------------
+        # POST DATA MODULES + FUNCTIONALITY
+        # ------------------------------
+
+        # Footer for Pause/Play Multimedia
+        self.footer = QStatusBar()
+        self.slider_label = QLabel("Slider Value: ")
+        self.timestamper = TimeStamper()
+        self.timestamper.slider.valueChanged.connect(self.update_slider_label)
+        # self.setStatusBar(self.footer)
+        self.play_button = QPushButton("Play")
+        self.play_button.clicked.connect(self.play)
+        self.pause_button = QPushButton("Pause")
+        self.pause_button.clicked.connect(self.pause)
+
+        self.footer.addWidget(self.play_button)
+        self.footer.addWidget(self.pause_button)
+        self.footer.addPermanentWidget(self.slider_label)
+        self.footer.addPermanentWidget(self.timestamper.slider)
+
+    def slider_moved(self, position):
+        print(position)
+        self.timestamper.time_stamp = position * (self.timestamper.max_time / 100)
+
+    def play(self):
+        for module in self.graph_modules:
+            module.play_graph()
+        for module in self.video_modules:
+            module.play()
+            # time.sleep(1)
+
+    def pause(self):
+        for module in self.graph_modules:
+            module.pause_graph()
+        for module in self.video_modules:
+            module.pause()
+            # time.sleep(1)
+
+    def update_slider_label(self, value):
+        value = int(value * (self.timestamper.max_time / 100))
+        # self.slider_label.setText(f"Slider Value: {value}")
 
     def create_new_session(self):
         """
@@ -430,7 +394,6 @@ class Dashboard(QMainWindow):
         if index == self.current_tab_index:
             self.current_tab_index = -1
 
-
     def update_refresh_rate(self, update_data):
         rate = update_data["Refresh Rate"][-1]
         self.refresh_rate_label.setText(f"{rate:.1f}" + " Hz")
@@ -446,6 +409,174 @@ class Dashboard(QMainWindow):
     def update_all_graphs(self, new_data):
         for graphmodule in self.graph_modules:
             graphmodule.update_graph(new_data)
+
+    def switch_toggled(self, f):
+        self.clear_layout(self.toolbar)
+        if f:
+            self.add_post_modules()
+        else:  
+            self.add_live_modules()
+
+    def clear_layout(self, layout):
+        while layout.count():
+            item = layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+                layout.removeWidget(widget)
+            else:
+                layout.removeItem(item)
+        
+        layout.update()
+
+    def add_live_modules(self):
+        # Buttons
+        self.graph_module_button = QPushButton("Add Graph Module")
+        self.graph_module_button.setMaximumWidth(200)
+        self.graph_module_button.clicked.connect(self.create_graph_module)
+
+        self.gg_plot_button = QPushButton("Add GG Module")
+        self.gg_plot_button.setMaximumWidth(200)
+        self.gg_plot_button.clicked.connect(self.create_gg_module)
+
+        self.ROLL_plot_button = QPushButton("Add RG Module")
+        self.ROLL_plot_button.setMaximumWidth(200)
+        self.ROLL_plot_button.clicked.connect(self.create_rg_module)
+
+        self.label_module_button = QPushButton("Add Label Module")
+        self.label_module_button.setMaximumWidth(200)
+        self.label_module_button.clicked.connect(self.create_label_module)
+        
+        self.stop_reading_button = QPushButton("Stop Serial Read")
+        self.stop_reading_button.setMaximumWidth(200)
+        self.stop_reading_button.clicked.connect(self.stop_serial_read)
+
+        self.report_module_button = QPushButton("Add Report Card")
+        self.report_module_button.setMaximumWidth(200)
+        self.report_module_button.clicked.connect(self.create_report_module)
+
+        self.wheelviz_button = QPushButton("Add WheelViz")
+        self.wheelviz_button.setMaximumWidth(200)
+        self.wheelviz_button.clicked.connect(self.add_wheelviz)
+
+        self.lap_module_button = QPushButton("Add Lap Module")
+        self.lap_module_button.setMaximumWidth(200)
+        self.lap_module_button.clicked.connect(self.create_lap_module)
+
+        self.radio_button = QRadioButton("USE SQL")
+        self.radio_button.setChecked(False)
+        self.radio_button.clicked.connect(self.create_sql)
+        self.radio_button.clicked.connect(self.toggle_db_write)
+
+        self.write_sql_button = QPushButton("Write Data to DB")
+        self.write_sql_button.setDisabled(True)
+        self.write_sql_button.setMaximumWidth(200)
+        self.write_sql_button.clicked.connect(self.write_sql)
+
+        self.save_dashboard_button = QPushButton("Save Dashboard")
+        self.save_dashboard_button.setMaximumWidth(200)
+        self.save_dashboard_button.clicked.connect(self.save_dashboard)
+
+        self.refresh_rate_label = QLabel("Hertz: ")
+        self.refresh_rate_label.setStyleSheet("background-color: #455364;")
+        self.serialmonitor.data_changed.connect(self.update_refresh_rate)
+
+        # Create PyQt Switch to switch between live and post data
+        self.switch = PyQtSwitch()
+        # self.switch.setAnimation(True)
+        self.switch.setChecked(False)
+        self.switch.toggled.connect(self.switch_toggled)
+        # switch.setCircleDiameter(40)
+        self.switch_label = QLabel("Live Data")
+
+        self.toolbar.addWidget(self.switch_label)
+        self.toolbar.addWidget(self.switch)
+        self.toolbar.addWidget(self.graph_module_button)
+        self.toolbar.addWidget(self.gg_plot_button)
+        self.toolbar.addWidget(self.ROLL_plot_button)
+        self.toolbar.addWidget(self.label_module_button)
+        self.toolbar.addWidget(self.stop_reading_button)
+        self.toolbar.addWidget(self.report_module_button)
+        self.toolbar.addWidget(self.wheelviz_button)
+        self.toolbar.addWidget(self.lap_module_button)
+        self.toolbar.addWidget(self.radio_button)
+        self.toolbar.addWidget(self.write_sql_button)
+        self.toolbar.addWidget(self.save_dashboard_button)
+        self.toolbar.addStretch(1)
+        self.toolbar.addWidget(self.refresh_rate_label)
+
+        self.setStatusBar(None)
+    
+    def add_post_modules(self):
+        self.post_camera_module_button = QPushButton("Add Camera")
+        self.post_camera_module_button.setMaximumWidth(200)
+        self.post_camera_module_button.clicked.connect(self.create_post_camera_module)
+
+        self.post_graph_module_button = QPushButton("Add Post Graph Module")
+        self.post_graph_module_button.setMaximumWidth(200)
+        self.post_graph_module_button.clicked.connect(self.create_post_graph_module)
+
+        self.post_lap_button = QPushButton("Add Post Lap Module")
+        self.post_lap_button.setMaximumWidth(200)
+        self.post_lap_button.clicked.connect(self.create_post_lap_module)
+
+        self.add_csv_button = QPushButton("Add CSV File")
+        self.add_csv_button.setMaximumWidth(200)
+        self.add_csv_button.clicked.connect(self.introduce_csv_importer)
+
+        self.select_session_button = QComboBox()
+        self.select_session_button.setMaximumWidth(200)
+        self.select_session_button.setPlaceholderText("Select Session")
+        # self.select_session_button.currentIndexChanged.connect(self.update_session)
+
+        self.save_dashboard_button = QPushButton("Save Dashboard")
+        self.save_dashboard_button.setMaximumWidth(200)
+        self.save_dashboard_button.clicked.connect(self.save_dashboard)
+
+        self.refresh_rate_label = QLabel("Hertz: ")
+        self.refresh_rate_label.setStyleSheet("background-color: #455364;")
+        self.serialmonitor.data_changed.connect(self.update_refresh_rate)
+
+        # Populate drop down window with available session objects
+        for session in self.sessions:
+            self.select_session_button.addItem(
+                session["time"].strftime("%m/%d/%Y, %H:%M:%S")
+            )
+
+        # Create PyQt Switch to switch between live and post data
+        self.switch = PyQtSwitch()
+        self.switch.setChecked(True)
+        self.switch.toggled.connect(self.switch_toggled)
+        # self.switch.setAnimation(True)
+        # switch.setCircleDiameter(40)
+        self.switch_label = QLabel("Post Data")
+
+        self.toolbar.addWidget(self.switch_label)
+        self.toolbar.addWidget(self.switch)
+        self.toolbar.addWidget(self.post_camera_module_button)
+        self.toolbar.addWidget(self.post_graph_module_button)
+        self.toolbar.addWidget(self.post_lap_button)
+        self.toolbar.addWidget(self.add_csv_button)
+        self.toolbar.addWidget(self.save_dashboard_button)
+        self.toolbar.addWidget(self.select_session_button)
+        self.toolbar.addStretch(1)
+        self.toolbar.addWidget(self.refresh_rate_label)
+
+        self.footer = QStatusBar()
+        self.slider_label = QLabel("Slider Value: ")
+        self.timestamper = TimeStamper()
+        self.timestamper.slider.valueChanged.connect(self.update_slider_label)
+        self.play_button = QPushButton("Play")
+        self.play_button.clicked.connect(self.play)
+        self.pause_button = QPushButton("Pause")
+        self.pause_button.clicked.connect(self.pause)
+
+        self.footer.addWidget(self.play_button)
+        self.footer.addWidget(self.pause_button)
+        self.footer.addWidget(self.slider_label)
+        self.footer.addWidget(self.timestamper.slider)
+
+        self.setStatusBar(self.footer)
 
     def create_graph_module(self):
         sub_window = QMdiSubWindow()
@@ -513,6 +644,49 @@ class Dashboard(QMainWindow):
         sub_window.setGeometry(lap.geometry())
         self.mdi_area.addSubWindow(sub_window)
         sub_window.show()
+
+    def create_post_camera_module(self):
+        """Upon a connection with a button, this will create a sub-window which is a container for a VideoPlayer (check class).
+        This subwindow is added to the Multiple Document Interface which is the meat and potatoes of our application.
+        """
+        sub_window = QMdiSubWindow()
+        self.video_modules.append(PostVideoPlayer(timestamper=self.timestamper))
+        self.video_modules[-1].setWindowIcon(QIcon("90129757.jpg"))
+        sub_window.setWidget(self.video_modules[-1])
+        sub_window.setGeometry(self.video_modules[-1].geometry())
+        self.mdi_area.addSubWindow(sub_window)
+        sub_window.show()
+
+    def create_post_graph_module(self):
+        """Upon a connection with a button, this will create a sub-window which is a container for a GraphModule (check class)
+        This subwindow is added to the Multiple Document Interface which is the meat and potatoes of our application.
+        """
+        sub_window = QMdiSubWindow()
+        self.graph_modules.append(PostGraphModule(timestamper=self.timestamper))
+        sub_window.setWidget(self.graph_modules[-1])
+        sub_window.setGeometry(self.graph_modules[-1].geometry())
+        self.mdi_area.addSubWindow(sub_window)
+        sub_window.show()
+
+    def create_post_lap_module(self):
+        sub_window = QMdiSubWindow()
+        sub_window.setWindowTitle("Lap Module")
+        lap_module = PostLapModule()
+        sub_window.setWidget(lap_module)
+        self.mdi_area.addSubWindow(sub_window)
+        sub_window.show()
+
+    def introduce_csv_importer(self):
+        """Upon a connection with a button, this will open a file dialog which allows a user to select a csv file of their choosing.
+        This file will be imported using our CSVImporter class and added to a set of active sessions
+        """
+        filename = QFileDialog.getOpenFileName(filter="CSV Files(*.csv)")
+        if filename[0] == "":
+            return
+        importer = CSVImport(filename[0])
+        importer.exec()
+        self.select_session_button.clear()
+        self.active_data = get_active_sessions()[0].get_dataframe()
 
     def create_sql(self):
         current_time = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
@@ -595,6 +769,7 @@ class Dashboard(QMainWindow):
                 session["filename"] = final_path
 
         print("All temp sessions were moved into sessions/ folder.")
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setStyleSheet(qdarkstyle.load_stylesheet(palette=DarkPalette))
