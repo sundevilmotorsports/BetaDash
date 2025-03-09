@@ -94,9 +94,6 @@ class GraphModule(QMainWindow):
         self.color_index = 0
         self.pen = pg.mkPen(color='red', width=1)
 
-        self.serialhandler = serialhandler
-        self.serialhandler.data_changed.connect(self.update_graph)
-
         self.layout.addWidget(self.plot_widget)
         self.sidebox = QVBoxLayout()
         self.sidebox2 = QVBoxLayout()
@@ -158,27 +155,17 @@ class GraphModule(QMainWindow):
         self.crosshair_enable = False
         self.checkbox.stateChanged.connect(self.toggle)
 
-        self.checkbox_gg = QCheckBox("Toggle GvG Plot")
-        self.checkbox_gg.setChecked(False)
-        self.sidebox.addWidget(self.checkbox_gg)
-        self.gg_enable = False
-        self.checkbox_gg.stateChanged.connect(self.gg_toggle)
-
         self.initialize_combo_boxes()
-
-        self.graph_indice = 0
-        self.x_axis_offset = 30
-        self.y_axis_offset = 0
-        self.end_offset = 0
-
-        self.graph_point_count = 0
-        self.max_point = 300
 
         self.last_mouse_position = [0, 0]
         #self.plot_widget.scene().sigMouseClicked.connect(self.mouseClicked)
         self.escalation_status = 0
         self.events = []
         self.event_markers = []
+
+        # Put Last to Avoid Errors regarding updating graphs
+        self.serialhandler = serialhandler
+        self.serialhandler.data_changed.connect(self.update_graph)
 
     def destructor(self):
         if self._cleanup_done:
@@ -194,9 +181,8 @@ class GraphModule(QMainWindow):
 
         del (self.central_widget, self.layout, self.plot_widget, 
             self.pen, self.sidebox, self.sidebox2, self.x_combo, self.y_combo,  self.selected_y_columns, 
-            self.selected_x, self.checkbox, self.crosshair_enable, self.graph_indice, self.x_axis_offset, 
-            self.y_axis_offset, self.end_offset, self.last_mouse_position, self.escalation_status,
-             self.events, self.event_markers, self.serialhandler)
+            self.selected_x, self.checkbox, self.crosshair_enable, self.last_mouse_position, self.escalation_status,
+            self.events, self.event_markers, self.serialhandler)
         self._cleanup_done = True
         #print("Cleanup complete.")
 
@@ -214,7 +200,6 @@ class GraphModule(QMainWindow):
 
     def on_channel_created(self, lambda_func_list, input_formulas, unique_variables_list):
         self.modify_plots(lambda_func_list, input_formulas, unique_variables_list)
-
             
     def open_color_dialog(self):
         color = QColorDialog.getColor()
@@ -278,17 +263,6 @@ class GraphModule(QMainWindow):
             #self.initCrosshair()
             print("Checkbox is checked crosshair disabled rn")
 
-    def gg_toggle(self):
-        print("GG TOGGLE")
-        if self.gg_enable == 1:
-            self.gg_enable = False
-        else:
-            self.gg_enable = True
-            self.x_combo.setCurrentIndex(1)
-            self.y_combo.setCurrentIndex(2)
-            self.plot_widget.clear()
-            self.queue_size_slider.setValue(50)
-
     def mouseClicked(self, e):
         pos = e
         if self.plot_widget.sceneBoundingRect().contains(pos):
@@ -318,32 +292,34 @@ class GraphModule(QMainWindow):
 
     @pyqtSlot(dict)
     def update_graph(self, new_data):
-        x_column = self.x_combo.currentText()
-        y_columns = self.y_combo.currentData()
-        queue_size = self.queue_size_slider.value()
-        self.queue_size_label.setText(f"Queue Size: {queue_size}")
+        try:
+            x_column = self.x_combo.currentText()
+            y_columns = self.y_combo.currentData()
+            queue_size = self.queue_size_slider.value()
+            self.queue_size_label.setText(f"Queue Size: {queue_size}")
 
-        x_values = np.asarray(new_data[x_column]).flatten()
-        x_values = x_values[-queue_size:]
+            x_values = np.asarray(new_data[x_column]).flatten()
+            x_values = x_values[-queue_size:]
 
-        for plot_item in self.plot_items.values():
-            if not isinstance(plot_item.y_column, list): # if y_column is a list in the plot item object then its a math channel
-                y_values = np.asarray(new_data[plot_item.y_column]).flatten()
-                y_values = y_values[-queue_size:]
+            for plot_item in self.plot_items.values():
+                if not isinstance(plot_item.y_column, list): # if y_column is a list in the plot item object then its a math channel
+                    y_values = np.asarray(new_data[plot_item.y_column]).flatten()
+                    y_values = y_values[-queue_size:]
 
-                plot_item.data_item.setData(x=x_values, y=y_values)
-            else:
-                func = plot_item.math_ch
-                column_data = []
-                for name in plot_item.y_column:
-                    column_data.append(np.asarray(new_data[name][-queue_size:]))
-                # column_data = [np.asarray(new_data[name])[-queue_size:] for name in plot_item.y_column]
-                if column_data:
-                    plot_item.data_item.setData(x=x_values, y=func(*column_data))
-                else:
-                    y_values = [func(*column_data) for x in x_values]
                     plot_item.data_item.setData(x=x_values, y=y_values)
-                
+                else:
+                    func = plot_item.math_ch
+                    column_data = []
+                    for name in plot_item.y_column:
+                        column_data.append(np.asarray(new_data[name][-queue_size:]))
+                    # column_data = [np.asarray(new_data[name])[-queue_size:] for name in plot_item.y_column]
+                    if column_data:
+                        plot_item.data_item.setData(x=x_values, y=func(*column_data))
+                    else:
+                        y_values = [func(*column_data) for x in x_values]
+                        plot_item.data_item.setData(x=x_values, y=y_values) 
+        except Exception as e:
+            print("Error: ", e)
 
     def modify_plots(self, lambda_func_list : list, input_formulas : list, unique_variables_list : list):
         y_columns = self.y_combo.currentData()
@@ -499,20 +475,16 @@ class GraphModule(QMainWindow):
         dialog.exec_()
 
     def get_info(self):
-        """Returns a dictionary containing the state of the GraphModule."""
         return {
             'type': 'GraphModule',
             'x_axis': self.x_combo.currentText(),
-            'y_axis': self.y_combo.currentData(),  # Use currentData() to get selected items
+            'y_axis': self.y_combo.currentData(),
             'color': self.pen.color().name(),
             'queue_size': self.queue_size_slider.value(),
             'crosshair_enabled': self.crosshair_enable,
-            'gvg_enabled': self.gg_enable,
         }
 
-    
     def set_info(self, info):
-        """Sets the state of the GraphModule based on the provided info dictionary."""
         if 'x_axis' in info:
             index = self.x_combo.findText(info['x_axis'])
             if index >= 0:
@@ -521,7 +493,6 @@ class GraphModule(QMainWindow):
                 print(f"Warning: X axis '{info['x_axis']}' not found in combo box.")
 
         if 'y_axis' in info:
-            # Set the check state of items
             for i in range(self.y_combo.model().rowCount()):
                 item = self.y_combo.model().item(i)
                 if item.data() in info['y_axis'] or item.text() in info['y_axis']:
@@ -535,8 +506,6 @@ class GraphModule(QMainWindow):
             self.queue_size_slider.setValue(info['queue_size'])
         if 'crosshair_enabled' in info:
             self.checkbox.setChecked(info['crosshair_enabled'])
-        if 'gvg_enabled' in info:
-            self.checkbox_gg.setChecked(info['gvg_enabled'])
 
     def get_graph_type(self):
         return "GraphModule"

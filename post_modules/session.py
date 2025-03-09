@@ -12,54 +12,28 @@ class Session:
     data : pd.DataFrame
 
 class SessionManager():
-    pass
+    def __init__(self):
+        self.active_sessions : list(Session) = []
 
-# Array that holds different sessions accessible by the day it occurred
-active_sessions = []
+    def get_metadata(self, session : Session): # Returns string of meta data
+        return "Date: " + session.date + " , Time: " + session.time + " , Driver: " + session.driver + " , Car: " + session.car + " , Track: " + session.track
 
-class Session():
-    def __init__(self, data: pd.DataFrame, metadata: pd.DataFrame):
-        # Data frame for the raw data from the box
-        self.logger_data = data
-        # Data frame with the corresponding metadata
-        self.logger_metadata = metadata
+    def load_session(self, metadata_filename, data_filename):
+        metadata_df = pd.read_csv(metadata_filename)
+        data_df = pd.read_csv(data_filename)
 
-    def get_dataframe(self):
-        return self.logger_data
+        session_ = Session(
+            date=metadata_df['date'],
+            time=metadata_df['time'],
+            driver=metadata_df['driver'],
+            car=metadata_df['track'],
+            data=data_df.to_dict('dict')
+        )
 
-    def get_metadata(self):
-        return self.logger_metadata
+        self.active_sessions.append(session_)
 
-    def get_lap_value(self):
-        return self.logger_metadata.get('Lap')
+    def get_active_sessions(self):
+        return self.active_sessions
 
-    def get_time_value(self):
-        return self.logger_metadata.get('Time')
 
-def add_session(new_session):
-    active_sessions.append(new_session)
-    print("add session new")
-    print(new_session.get_metadata()["Name"])
-
-def get_names():
-    """Returns an array with the strings of the "Name" column within the Metadata Dataframe for each session in the dashboard"""
-    return [session.get_metadata()["Name"] for session in active_sessions]
-
-def get_active_sessions():
-    """Getter for the active_sessions array"""
-    return active_sessions
-
-def set_session(df, time, lap, name, date, driver, car, track):
-    new_metadata = {
-        'Date': date,
-        'Driver': driver,
-        'Car': car,
-        'Track': track,
-        'Name': name,
-        'Time': time,
-        'Lap': lap,
-    }
-    new_session = Session(df, new_metadata)
-    with open(f"data/{name}.pkl", "wb") as f:
-        pickle.dump(new_session, f)
-    return new_session
+       

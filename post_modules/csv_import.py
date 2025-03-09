@@ -2,7 +2,7 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtGui import QIcon
 from datetime import date
 import pandas as pd
-from post_modules.session import Session, add_session, get_names, set_session, get_active_sessions
+from post_modules.session import Session, SessionManager
 
 # ------------------------------
 # Custom class named CSVImport. This opens a new window which features a set of comboboxes and textboxes where the user can predefine

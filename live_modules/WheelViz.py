@@ -6,6 +6,8 @@ import pyqtgraph as pg
 from pyqtgraph import ImageView
 import numpy as np
 from serialhander import SerialHandler
+from utils import ModuleInfo
+
 
 class WheelViz(QWidget):
     def __init__(self, serialhandler : SerialHandler):
@@ -225,13 +227,15 @@ class WheelViz(QWidget):
 
 
     def get_info(self):
-        return {
-            'type': 'WheelViz',
+        return ModuleInfo(
+            moduleType="WheelViz",
+            info={
             'front_left': self.front_left_combo.currentText(),
             'rear_left': self.rear_left_combo.currentText(),
             'front_right': self.front_right_combo.currentText(),
             'rear_right': self.rear_right_combo.currentText(),
-        }
+            }
+        )
     
     def set_info(self, info):
         if 'front_left' in info:
