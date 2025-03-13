@@ -23,8 +23,12 @@ class LapModule(QMainWindow):
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
 
-        self.layout = QHBoxLayout(self.central_widget)
+        self.main_layout = QVBoxLayout(self.central_widget)
+
+        self.layout = QHBoxLayout()
         self.layout.setContentsMargins(0, 0, 0, 0)
+
+        self.main_layout.addLayout(self.layout)
 
         self.left = QVBoxLayout()
         self.middle = QVBoxLayout()
@@ -49,6 +53,14 @@ class LapModule(QMainWindow):
 
         self.lap_relative_data_list = QListWidget()
         self.right.addWidget(self.lap_relative_data_list)
+
+        self.lap_time_label = QLabel("Lap Time: 0.000")
+        self.main_layout.addWidget(self.lap_time_label)
+
+        self.zero_button = QPushButton("Zero Out Values")
+        self.zero_button.setMaximumWidth(200)
+        self.zero_button.clicked.connect(self.zero_out_values)
+        self.main_layout.addWidget(self.zero_button)
 
         self.layout.addLayout(self.left)
         self.layout.addLayout(self.middle)
@@ -89,7 +101,6 @@ class LapModule(QMainWindow):
             self.lap_timers[lap_data["Gate Number"][-1]].Now_Millis = lap_data["Now Millis"][-1]
             self.lap_timers[lap_data["Gate Number"][-1]].Now_Millis_Minus_Starting_Millis = lap_data["Now Millis Minus Starting Millis"][-1]
 
-        
         self.update_lists()
 
     def update_lists(self):
@@ -103,12 +114,27 @@ class LapModule(QMainWindow):
                 val = str(round(self.lap_timers[gate_number].Now_Millis, 3))
                 self.lap_global_data_list.addItem(val)
         
-        zero_index_item_index = None
+        self.zero_index_item_index = None
+
         for index, item in enumerate(items):
             gate_number = int(item.split(":")[-1].strip())
             if gate_number in self.lap_timers and index == 0:
                 self.lap_relative_data_list.addItem(str(0))
-                zero_index_item_index = gate_number
+                self.zero_index_item_index = gate_number
             elif gate_number in self.lap_timers and index != 0:
-                val = str(round(self.lap_timers[gate_number].Now_Millis - self.lap_timers[zero_index_item_index].Now_Millis, 3))
+                val = str(round(self.lap_timers[gate_number].Now_Millis - self.lap_timers[self.zero_index_item_index].Now_Millis, 3))
                 self.lap_relative_data_list.addItem(val)
+
+        if self.zero_index_item_index is not None and self.lap_timers[self.zero_index_item_index].Prev_Now_Millis != 0:
+            lap_time = round(self.lap_timers[self.zero_index_item_index].Now_Millis - self.lap_timers[self.zero_index_item_index].Prev_Now_Millis, 3)
+            self.lap_time_label.setText(f"Lap Time: {lap_time}")
+
+    def zero_out_values(self):
+        for gate_number in self.lap_timers:
+            self.lap_timers[gate_number].Now_Millis = 0
+            self.lap_timers[gate_number].Now_Millis_Minus_Starting_Millis = 0
+            self.lap_timers[gate_number].Prev_Now_Millis = 0
+            self.lap_timers[gate_number].Prev_Now_Millis_Minus_Starting_Millis = 0
+
+        self.update_lists()
+        self.lap_time_label.setText("Lap Time: 0.000")
