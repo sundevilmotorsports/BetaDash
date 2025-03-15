@@ -8,6 +8,8 @@ from matplotlib.backends.backend_qt5agg import (
 )
 from matplotlib.figure import Figure
 from collapsible_module import Collapsible
+from checkable_combo import CheckableComboBox
+from post_modules.session import Session, SessionManager
 
 class MplCanvas(FigureCanvasQTAgg):
     activeXY = [[], []]
@@ -17,14 +19,11 @@ class MplCanvas(FigureCanvasQTAgg):
         super(MplCanvas, self).__init__(self.fig)
 
 class LapChooser(QWidget):
-    def __init__(
-        self,
-        central_widget: QWidget,
-        plot: Figure,
-    ):
+    def __init__(self, central_widget: QWidget, plot: Figure, session_manager : SessionManager):
         super().__init__()
         self.central_widget = central_widget
         self.plot_widget = plot
+        self.session_manager = session_manager
         self.sidebox = QVBoxLayout()
         self.sidebox2 = QVBoxLayout()
 
@@ -41,16 +40,15 @@ class LapChooser(QWidget):
         self.x_set.showEvent = lambda _: self.init_metadata()
         self.x_set.currentIndexChanged.connect(self.set_active_data)
 
-        self.data = get_active_sessions()
-        self.names = get_names()
-        # Session returns array of active csvs, we only want the first as of now
+        self.sessions = self.session_manager.active_sessions
+        self.names = self.session_manager.get_filenames()
         
-        self.data = self.data[0].get_dataframe()
+        self.data = self.sessions[0].data
         self.lap_dataframes = {}
         self.plot_laps_dataframe = []
 
         for _, row in self.data.iterrows():
-            lap_number = row['Lap (#)']
+            lap_number = row[self.sessions[0].lap_counter]
             
             if lap_number not in self.lap_dataframes:
                 self.lap_dataframes[lap_number] = pd.DataFrame(columns=self.data.columns)
@@ -70,9 +68,6 @@ class LapChooser(QWidget):
         
         # checkable combo box addition from class defined below
         self.laps_combo = CheckableComboBox(self)
-        self.laps_combo.setStyleSheet(
-            "background-color: white; color: black; font-size: 14px;"
-        )
         self.laps_combo.setFixedHeight(25)
         self.laps_combo.model().dataChanged.connect(self.manage_Laps)
         # array to hold every 'lap', just a placeholder to populate combobox
@@ -113,12 +108,10 @@ class LapChooser(QWidget):
 
     def set_combo_box(self):
         """Populates ComboBoxes with all different columns within the active data"""           
-        self.x_set.addItems(get_names())
+        self.x_set.addItems(self.session_manager.get_filenames())
         self.x_combo.clear()
         self.y_combo.clear()
-        self.active_dataX = get_active_sessions()[
-            self.x_set.currentIndex()
-        ].get_dataframe()
+        self.active_dataX = self.session_manager.active_sessions[self.x_set.currentIndex()].data
         self.x_combo.addItems(self.active_dataX.columns.tolist())
         self.y_combo.addItems(self.active_dataX.columns.tolist())
 
@@ -139,9 +132,7 @@ class LapChooser(QWidget):
 
         self.init_metadata()
 
-        self.active_dataX = get_active_sessions()[
-            self.x_set.currentIndex()
-        ].get_dataframe()
+        self.active_dataX = self.session_manager.active_sessions[self.x_set.currentIndex()].data
         self.x_combo.addItems(self.active_dataX.columns.tolist())
         self.y_combo.addItems(self.active_dataX.columns.tolist())
         self.trim_graph()
@@ -151,15 +142,13 @@ class LapChooser(QWidget):
         """This function simply populates some of the labels with the metadata from the chosen metadata data frame"""
         try:
             self.clear_layout(self.sidebox2)
-            self.dataX = get_active_sessions()[
-                self.x_set.currentIndex()
-            ].get_metadata()
+            self.dataX = self.session_manager.active_sessions[self.x_set.currentIndex()]
 
-            self.sidebox2.addWidget(QLabel("Name: " + self.dataX["Name"]))
-            self.sidebox2.addWidget(QLabel("Date: " + self.dataX["Date"]))
-            self.sidebox2.addWidget(QLabel("Driver: " + self.dataX["Driver"]))
-            self.sidebox2.addWidget(QLabel("Car: " + self.dataX["Car"]))
-            self.sidebox2.addWidget(QLabel("Track: " + self.dataX["Track"]))
+            self.sidebox2.addWidget(QLabel("Name: " + self.dataX.name))
+            self.sidebox2.addWidget(QLabel("Date: " + self.dataX.date))
+            self.sidebox2.addWidget(QLabel("Driver: " + self.dataX.driver))
+            self.sidebox2.addWidget(QLabel("Car: " + self.dataX.car))
+            self.sidebox2.addWidget(QLabel("Track: " + self.dataX.track))
         except:
             print("Error initializing metadata")
 
@@ -217,11 +206,11 @@ class LapChooser(QWidget):
         """Returns value of self.x_set, the combobox for selecting the current dataset or csv. additionally it returns the current x and y columns"""
         return self.x_set.currentText(), self.selected_x, self.selected_y
         
-       
 
 class PostLapModule(QMainWindow):
-    def __init__(self):
+    def __init__(self, session_manager):
         super().__init__()
+        self.session_manager = session_manager
         self.setWindowTitle("Module")
         self.setGeometry(100, 100, 1050, 600)
         self.menubar = self.menuBar()
@@ -248,9 +237,7 @@ class PostLapModule(QMainWindow):
         #array to store all laps graphed
         self.laps_arr = []
     
-        self.setChooser = LapChooser(
-            self.central_widget, self.plot_widget#, self.max_val
-        )
+        self.setChooser = LapChooser(self.central_widget, self.plot_widget, self.session_manager)
         if self.setChooser not in self.laps_arr:
             self.laps_arr.append(self.setChooser)
 
@@ -274,17 +261,10 @@ class PostLapModule(QMainWindow):
         self.setChooser.set_active_data()
         self.setChooser.plot_laps_dataframe = {}
         self.setChooser.plot_graph()
-    '''
-    def play_graph(self):
-        self.setChooser.play_graph()
 
-    def pause_graph(self):
-        self.setChooser.pause_graph()
-    '''
     def get_info(self):
         """Getter that returns an array with the layouts of the sideboxes"""
         return self.setChooser.get_info()
       
-    
     def get_graph_type():
         return "PostLapModule"

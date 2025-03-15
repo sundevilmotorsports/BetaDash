@@ -63,16 +63,16 @@ class Dashboard(QMainWindow):
 
         self.tab_widget = QTabWidget()
         self.tab_widget.setStyleSheet("""
-        #     QTabWidget::pane {
-        #         border: none;
-        #         margin: 0px;
-        #         padding: 0px;
-        #     }
-        #     QTabBar::tab {
-        #         border: none;
-        #         padding: 2px;
-        #     }
-        # """)
+             QTabWidget::pane {
+                 border: none;
+                 margin: 0px;
+                 padding: 0px;
+             }
+             QTabBar::tab {
+                 border: none;
+                 padding: 2px;
+             }
+         """)
         self.tab_widget.setTabsClosable(True)
         self.tab_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.tab_widget.tabCloseRequested.connect(self.close_tab)
@@ -136,47 +136,23 @@ class Dashboard(QMainWindow):
         self.dash_saved = False
         self.save_path = None
 
+        self.post_modules = []
+
         # SQL DEPRECATION
         # self.connection = None
         # self.db_name = None
-
-        # ------------------------------
-        # POST DATA MODULES + FUNCTIONALITY
-        # ------------------------------
-
-        # Footer for Pause/Play Multimedia
-        # self.footer = QStatusBar()
-        # self.slider_label = QLabel("Slider Value: ")
-        # self.timestamper = TimeStamper()
-        # self.timestamper.slider.valueChanged.connect(self.update_slider_label)
-        # # self.setStatusBar(self.footer)
-        # self.play_button = QPushButton("Play")
-        # self.play_button.clicked.connect(self.play)
-        # self.pause_button = QPushButton("Pause")
-        # self.pause_button.clicked.connect(self.pause)
-
-        # self.footer.addWidget(self.play_button)
-        # self.footer.addWidget(self.pause_button)
-        # self.footer.addPermanentWidget(self.slider_label)
-        # self.footer.addPermanentWidget(self.timestamper.slider)
 
     def slider_moved(self, position):
         print(position)
         self.timestamper.time_stamp = position * (self.timestamper.max_time / 100)
 
     def play(self):
-        for module in self.graph_modules:
-            module.play_graph()
-        for module in self.video_modules:
+        for module in self.post_modules:
             module.play()
-            # time.sleep(1)
 
     def pause(self):
-        for module in self.graph_modules:
-            module.pause_graph()
-        for module in self.video_modules:
+        for module in self.post_modules:
             module.pause()
-            # time.sleep(1)
 
     def update_slider_label(self, value):
         value = int(value * (self.timestamper.max_time / 100))
@@ -273,7 +249,6 @@ class Dashboard(QMainWindow):
             self.add_module_to_mdi(module_info)
 
     def on_tab_changed(self, new_index):
-        print("tab changed")
         if self.current_tab_index != -1:
             self.save_tab_data(self.current_tab_index)
 
@@ -307,10 +282,6 @@ class Dashboard(QMainWindow):
         if self.reading_thread.is_alive():
             self.reading_thread.join()
 
-    def update_all_graphs(self, new_data):
-        for graphmodule in self.graph_modules:
-            graphmodule.update_graph(new_data)
-
     def switch_toggled(self, f):
         self.clear_layout(self.toolbar)
         if f:
@@ -334,19 +305,19 @@ class Dashboard(QMainWindow):
         # Buttons
         self.graph_module_button = QPushButton("Add Graph Module")
         self.graph_module_button.setMaximumWidth(200)
-        self.graph_module_button.clicked.connect(self.create_graph_module)
+        self.graph_module_button.clicked.connect(lambda: self.create_module("GraphModule"))
 
         self.gg_plot_button = QPushButton("Add GG Module")
         self.gg_plot_button.setMaximumWidth(200)
-        self.gg_plot_button.clicked.connect(self.create_gg_module)
+        self.gg_plot_button.clicked.connect(lambda: self.create_module("ggModule"))
 
         self.ROLL_plot_button = QPushButton("Add RG Module")
         self.ROLL_plot_button.setMaximumWidth(200)
-        self.ROLL_plot_button.clicked.connect(self.create_rg_module)
+        self.ROLL_plot_button.clicked.connect(lambda: self.create_module("rgModule"))
 
         self.label_module_button = QPushButton("Add Label Module")
         self.label_module_button.setMaximumWidth(200)
-        self.label_module_button.clicked.connect(self.create_label_module)
+        self.label_module_button.clicked.connect(lambda: self.create_module("LabelModule"))
         
         self.stop_reading_button = QPushButton("Stop Serial Read")
         self.stop_reading_button.setMaximumWidth(200)
@@ -354,15 +325,15 @@ class Dashboard(QMainWindow):
 
         self.report_module_button = QPushButton("Add Report Card")
         self.report_module_button.setMaximumWidth(200)
-        self.report_module_button.clicked.connect(self.create_report_module)
+        self.report_module_button.clicked.connect(lambda: self.create_module("ReportModule"))
 
         self.wheelviz_button = QPushButton("Add WheelViz")
         self.wheelviz_button.setMaximumWidth(200)
-        self.wheelviz_button.clicked.connect(self.add_wheelviz)
+        self.wheelviz_button.clicked.connect(lambda: self.create_module("WheelViz"))
 
         self.lap_module_button = QPushButton("Add Lap Module")
         self.lap_module_button.setMaximumWidth(200)
-        self.lap_module_button.clicked.connect(self.create_lap_module)
+        self.lap_module_button.clicked.connect(lambda: self.create_module("LapModule"))
 
         # self.radio_button = QRadioButton("USE SQL")
         # self.radio_button.setChecked(False)
@@ -391,7 +362,6 @@ class Dashboard(QMainWindow):
         # self.switch.setAnimation(True)
         self.switch.setChecked(False)
         self.switch.toggled.connect(self.switch_toggled)
-        # switch.setCircleDiameter(40)
         self.switch_label = QLabel("Live Data")
 
         self.toolbar.addWidget(self.switch_label)
@@ -416,24 +386,19 @@ class Dashboard(QMainWindow):
     def add_post_modules(self):
         self.post_camera_module_button = QPushButton("Add Camera")
         self.post_camera_module_button.setMaximumWidth(200)
-        self.post_camera_module_button.clicked.connect(self.create_post_camera_module)
+        self.post_camera_module_button.clicked.connect(lambda: self.create_module("PostVideoPlayer"))
 
         self.post_graph_module_button = QPushButton("Add Post Graph Module")
         self.post_graph_module_button.setMaximumWidth(200)
-        self.post_graph_module_button.clicked.connect(self.create_post_graph_module)
+        self.post_graph_module_button.clicked.connect(lambda: self.create_module("PostGraphModule"))
 
         self.post_lap_button = QPushButton("Add Post Lap Module")
         self.post_lap_button.setMaximumWidth(200)
-        self.post_lap_button.clicked.connect(self.create_post_lap_module)
+        self.post_lap_button.clicked.connect(lambda: self.create_module("PostLapModule"))
 
         self.add_csv_button = QPushButton("Add CSV File")
         self.add_csv_button.setMaximumWidth(200)
         self.add_csv_button.clicked.connect(self.introduce_csv_importer)
-
-        self.select_session_button = QComboBox()
-        self.select_session_button.setMaximumWidth(200)
-        self.select_session_button.setPlaceholderText("Select Session")
-        # self.select_session_button.currentIndexChanged.connect(self.update_session)
 
         self.save_dashboard_button = QPushButton("Save Dashboard")
         self.save_dashboard_button.setMaximumWidth(200)
@@ -447,18 +412,11 @@ class Dashboard(QMainWindow):
         self.refresh_rate_label.setStyleSheet("background-color: #455364;")
         self.serialmonitor.data_changed.connect(self.update_refresh_rate)
 
-        # Populate drop down window with available session objects
-        for session in self.session_manager.get_active_sessions():
-            self.select_session_button.addItem(
-                session["time"].strftime("%m/%d/%Y, %H:%M:%S")
-            )
-
         # Create PyQt Switch to switch between live and post data
         self.switch = PyQtSwitch()
         self.switch.setChecked(True)
         self.switch.toggled.connect(self.switch_toggled)
         # self.switch.setAnimation(True)
-        # switch.setCircleDiameter(40)
         self.switch_label = QLabel("Post Data")
 
         self.toolbar.addWidget(self.switch_label)
@@ -469,7 +427,6 @@ class Dashboard(QMainWindow):
         self.toolbar.addWidget(self.add_csv_button)
         self.toolbar.addWidget(self.save_dashboard_button)
         self.toolbar.addWidget(self.load_dashboard_button)
-        self.toolbar.addWidget(self.select_session_button)
         self.toolbar.addStretch(1)
         self.toolbar.addWidget(self.refresh_rate_label)
 
@@ -489,112 +446,49 @@ class Dashboard(QMainWindow):
 
         self.setStatusBar(self.footer)
 
-    def create_graph_module(self):
+    def create_module(self, module_type : str):
         sub_window = QMdiSubWindow()
-        new_module = GraphModule(self.serialmonitor)
-        # self.graph_modules.append(new_module)
+        match(module_type):
+            case "GraphModule":
+                new_module = GraphModule(self.serialmonitor)
+            case "ggModule":
+                new_module = ggModule(self.serialmonitor)
+            case "rgModule":
+                new_module = rgModule(self.serialmonitor)
+            case "LabelModule":
+                dialog = DataTypeDialog(self)
+                if dialog.exec_() == QDialog.Accepted:
+                    selected_data_type, value, channel, channel_formula, channel_inputs = dialog.return_selected()
+                    new_module = LabelModule(self.serialmonitor, selected_data_type, channel=channel, channel_formula=channel_formula, channel_inputs=channel_inputs)
+            case "ReportModule":
+                new_module = ReportModule(self.serialmonitor)
+            case "WheelViz":
+                new_module = WheelViz(self.serialmonitor)
+            case "LapModule":
+                new_module = LapModule(self.serialmonitor)
+            case "PostVideoPlayer":
+                new_module = PostVideoPlayer(self.timestamper)
+                self.post_modules.append(new_module)
+            case "PostGraphModule":
+                new_module = PostGraphModule(self.timestamper, self.session_manager)
+                self.post_modules.append(new_module)
+            case "PostLapModule":
+                new_module = PostLapModule(self.session_manager, self.session_manager)
+            case _:
+                print("Module Type is Unknown:", module_type)
+                return
+
         sub_window.setAttribute(Qt.WA_DeleteOnClose)
         sub_window.setWidget(new_module)
         sub_window.setGeometry(new_module.geometry())
-        self.mdi_area.addSubWindow(sub_window)
-        sub_window.show()
-
-    def create_gg_module(self):
-        sub_window = QMdiSubWindow()
-        new_module = ggModule(self.serialmonitor)
-        sub_window.setAttribute(Qt.WA_DeleteOnClose)
-        sub_window.setWidget(new_module)
-        sub_window.setGeometry(new_module.geometry())
-        self.mdi_area.addSubWindow(sub_window)
-        sub_window.show()
-
-    def create_rg_module(self):
-        sub_window = QMdiSubWindow()
-        new_module = rgModule(self.serialmonitor)
-        sub_window.setAttribute(Qt.WA_DeleteOnClose)
-        sub_window.setWidget(new_module)
-        sub_window.setGeometry(new_module.geometry())
-        self.mdi_area.addSubWindow(sub_window)
-        sub_window.show()
-
-    def create_label_module(self):
-        dialog = DataTypeDialog(self)
-        if dialog.exec_() == QDialog.Accepted:
-            selected_data_type, value, channel, channel_formula, channel_inputs = dialog.return_selected()
-            sub_window = QMdiSubWindow()
-            label_module = LabelModule(self.serialmonitor, selected_data_type, channel=channel, channel_formula=channel_formula, channel_inputs=channel_inputs)
-            sub_window.setAttribute(Qt.WA_DeleteOnClose)
-            sub_window.setWidget(label_module)
-            sub_window.setGeometry(label_module.geometry())
-            self.mdi_area.addSubWindow(sub_window)
-            sub_window.show()
-
-    def create_report_module(self):
-        sub_window = QMdiSubWindow()
-        report_card = ReportModule(self.serialmonitor)
-        sub_window.setAttribute(Qt.WA_DeleteOnClose)
-        sub_window.setWidget(report_card)
-        sub_window.setGeometry(report_card.geometry())
-        self.mdi_area.addSubWindow(sub_window)
-        sub_window.show()
-
-    def add_wheelviz(self):
-        sub_window = QMdiSubWindow()
-        wheel_viz = WheelViz(self.serialmonitor)
-        sub_window.setAttribute(Qt.WA_DeleteOnClose)
-        sub_window.setWidget(wheel_viz)
-        sub_window.setGeometry(wheel_viz.geometry())
-        self.mdi_area.addSubWindow(sub_window)
-        sub_window.show()
-
-    def create_lap_module(self):
-        sub_window = QMdiSubWindow()
-        lap = LapModule(self.serialmonitor)
-        sub_window.setAttribute(Qt.WA_DeleteOnClose)
-        sub_window.setWidget(lap)
-        sub_window.setGeometry(lap.geometry())
-        self.mdi_area.addSubWindow(sub_window)
-        sub_window.show()
-
-    def create_post_camera_module(self):
-        """Upon a connection with a button, this will create a sub-window which is a container for a VideoPlayer (check class).
-        This subwindow is added to the Multiple Document Interface which is the meat and potatoes of our application.
-        """
-        sub_window = QMdiSubWindow()
-        self.video_modules.append(PostVideoPlayer(timestamper=self.timestamper))
-        self.video_modules[-1].setWindowIcon(QIcon("90129757.jpg"))
-        sub_window.setWidget(self.video_modules[-1])
-        sub_window.setGeometry(self.video_modules[-1].geometry())
-        self.mdi_area.addSubWindow(sub_window)
-        sub_window.show()
-
-    def create_post_graph_module(self):
-        """Upon a connection with a button, this will create a sub-window which is a container for a GraphModule (check class)
-        This subwindow is added to the Multiple Document Interface which is the meat and potatoes of our application.
-        """
-        sub_window = QMdiSubWindow()
-        self.graph_modules.append(PostGraphModule(timestamper=self.timestamper))
-        sub_window.setWidget(self.graph_modules[-1])
-        sub_window.setGeometry(self.graph_modules[-1].geometry())
-        self.mdi_area.addSubWindow(sub_window)
-        sub_window.show()
-
-    def create_post_lap_module(self):
-        sub_window = QMdiSubWindow()
-        sub_window.setWindowTitle("Lap Module")
-        lap_module = PostLapModule()
-        sub_window.setWidget(lap_module)
         self.mdi_area.addSubWindow(sub_window)
         sub_window.show()
 
     def introduce_csv_importer(self):
-        """Upon a connection with a button, this will open a file dialog which allows a user to select a csv file of their choosing.
-        This file will be imported using our CSVImporter class and added to a set of active sessions
-        """
         filename = QFileDialog.getOpenFileName(None, "Open CSV File", "CSVs", filter="CSV Files(*.csv)")
         if filename[0] == "":
             return
-        importer = CSVImport(filename[0])
+        importer = CSVImport(filename[0], self.session_manager)
         importer.exec()
         self.select_session_button.clear()
         self.active_data = self.session_manager.get_active_sessions()[0].data

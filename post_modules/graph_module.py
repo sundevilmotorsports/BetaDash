@@ -13,6 +13,7 @@ from PyQt5.QtGui import QIntValidator, QPalette, QFontMetrics, QStandardItem
 from PyQt5.QtCore import Qt, QObject, QEvent
 from collapsible_module import Collapsible
 from checkable_combo import CheckableComboBox
+from post_modules.session import Session, SessionManager
 from post_modules.timestamper import TimeStamper
 
 # ------------------------------
@@ -32,22 +33,17 @@ class MplCanvas(FigureCanvasQTAgg):
         self.ax1 = self.fig.add_subplot(111)
         super(MplCanvas, self).__init__(self.fig)
 
-
 # ------------------------------
 # Custom class named DatasetChooser. This is the sidebar that provides functionality to select datasets,
 # customize data visualization settings, and update and animate graphs using Matplotlib.
 # It connects various widgets and signals to provide an interactive data visualization experience.
 # ------------------------------
 class DatasetChooser(QWidget):
-    def __init__(
-        self,
-        central_widget: QWidget,
-        plot: MplCanvas,
-        timestamper: TimeStamper,
-    ):
+    def __init__(self, central_widget: QWidget, plot: MplCanvas, timestamper: TimeStamper, session_manager : SessionManager):
         super().__init__()
         self.central_widget = central_widget
         self.plot_widget = plot
+        self.session_manager = session_manager
         self.sidebox = QVBoxLayout()
         self.sidebox2 = QVBoxLayout()
         self.timestamper = timestamper
@@ -121,7 +117,6 @@ class DatasetChooser(QWidget):
 
         self.sidebox2.setAlignment(Qt.AlignTop)
 
-
         ### styling for matplotlib
         #plt.style.use('dark_background'), looks bad lmao
 
@@ -144,12 +139,12 @@ class DatasetChooser(QWidget):
     def set_combo_box(self):
         """Populates ComboBoxes with all different columns within the active data"""
         try:    
-            names = get_names()
-            data = get_active_sessions()
+            names = self.session_manager.get_filenames()
+            data = self.session_manager.active_sessions
             self.x_set.addItems(names)
             self.x_combo.clear()
             self.y_combo.clear()
-            self.active_dataX = data[0].get_dataframe()
+            self.active_dataX = data[0].data
             self.x_combo.addItems(self.active_dataX.columns.tolist())
             self.y_combo.addItems(self.active_dataX.columns.tolist())
         except:
@@ -180,13 +175,9 @@ class DatasetChooser(QWidget):
 
         self.init_metadata()
 
-        self.active_dataX = get_active_sessions()[
-            self.x_set.currentIndex()
-        ].get_dataframe()
+        self.active_dataX = self.session_manager.active_sessions[self.x_set.currentIndex()].data
         self.x_combo.addItems(self.active_dataX.columns.tolist())
         self.y_combo.addItems(self.active_dataX.columns.tolist())
-        time_col = get_active_sessions()[0].get_metadata()['Time']
-        #self.timestamper.slider.setRange(0, int(self.active_dataX[time_col].max()))
         ###TAKE NOTE THE NEXT 3 LINES CALL trim_graph 3 TIMES, don't think we want from a performance and maintenance perspective
         self.begin_widget.setText(str(self.active_dataX[self.selected_x].iloc[0]))
         self.end_widget.setText(str(self.active_dataX[self.selected_x].iloc[-1]))
@@ -199,24 +190,19 @@ class DatasetChooser(QWidget):
         """This function simply populates some of the labels with the metadata from the chosen metadata data frame"""
         try:
             self.clear_layout(self.sidebox2)
-            self.dataX = get_active_sessions()[
-                self.x_set.currentIndex()
-            ].get_metadata()
-            self.dataY = get_active_sessions()[
-                self.x_set.currentIndex()
-            ].get_metadata()
+            self.dataX = self.session_manager.active_sessions[self.x_set.currentIndex()]
 
-            self.sidebox2.addWidget(QLabel("Name: " + self.dataX["Name"]))
-            self.sidebox2.addWidget(QLabel("Date: " + self.dataX["Date"]))
-            self.sidebox2.addWidget(QLabel("Driver: " + self.dataX["Driver"]))
-            self.sidebox2.addWidget(QLabel("Car: " + self.dataX["Car"]))
-            self.sidebox2.addWidget(QLabel("Track: " + self.dataX["Track"]))
+            self.sidebox2.addWidget(QLabel("Name: " + self.dataX.name))
+            self.sidebox2.addWidget(QLabel("Date: " + self.dataX.date))
+            self.sidebox2.addWidget(QLabel("Driver: " + self.dataX.driver))
+            self.sidebox2.addWidget(QLabel("Car: " + self.dataX.car))
+            self.sidebox2.addWidget(QLabel("Track: " + self.dataX.track))
         except:
             print("Error initializing metadata")
 
     def trim_graph(self):        
         """Function that when called, will edit the bounds of the graph based on whether autofit is selected or not. Otherwise values in textboxes will be set to the bounds"""
-        print("normal trim or end or begin")
+        # print("normal trim or end or begin")
         
         self.disconnect_trim_connections()
 
@@ -239,7 +225,7 @@ class DatasetChooser(QWidget):
         self.connect_trim_connections()
         
     def slider_trim_graph(self):
-        print("slider trim")
+        # print("slider trim")
         
         self.disconnect_trim_connections()
 
@@ -296,11 +282,9 @@ class DatasetChooser(QWidget):
             y_data = self.active_dataX[self.selected_y_columns]
 
             self.plot_widget.ax1.clear()
-            print(self.selected_y_columns)
+            # print(self.selected_y_columns)
             for col in self.selected_y_columns:
-                self.plot_widget.ax1.plot(
-                    self.active_dataX[self.selected_x], self.active_dataX[col], label=col
-                )
+                self.plot_widget.ax1.plot(self.active_dataX[self.selected_x], self.active_dataX[col], label=col)
                 
             self.plot_widget.ax1.set_xlabel(self.selected_x)
             self.plot_widget.ax1.set_ylabel(", ".join(self.selected_y_columns))
@@ -340,7 +324,7 @@ class DatasetChooser(QWidget):
         """
         ###allows modifying of labels without calling trim graph
         ##### also i wanted to move this into play_graph() but didnt work so its here.
-        print("timestamp fed into animate: " + str(timestamp))
+        # print("timestamp fed into animate: " + str(timestamp))
         
         self.disconnect_trim_connections()
         
@@ -389,14 +373,13 @@ class DatasetChooser(QWidget):
 # This class creates a graphical application with a main window that allows users to add and configure multiple datasets for plotting.
 # This is what is shown in the GUI from the main file: dash_board.py. It encapsulates everything described in this file up until this point.
 # ------------------------------
-
-
 class PostGraphModule(QMainWindow):
-    def __init__(self, timestamper=None):
+    def __init__(self, timestamper, session_manager):
         super().__init__()
         self.data_set = []
+        self.session_manager = session_manager
         self.setWindowTitle("Module")
-        self.setGeometry(100, 100, 1050, 600)
+        self.setGeometry(100, 100, 950, 600)
         self.menubar = self.menuBar()
         self.menubar.setStyleSheet(
             "background-color: #333; color: white; font-size: 14px;"
@@ -413,6 +396,7 @@ class PostGraphModule(QMainWindow):
         graph_widget = QWidget()
         self.plot_widget = MplCanvas()
         self.plot_widget.fig.tight_layout()
+        self.plot_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
         #toolbar = NavigationToolbar(self.plot_widget, self)
         plot_layout = QVBoxLayout(graph_widget)
@@ -422,9 +406,7 @@ class PostGraphModule(QMainWindow):
         self.layout.addWidget(graph_widget)
 
         self.timestamper = timestamper
-        self.setChooser = DatasetChooser(
-            self.central_widget, self.plot_widget, timestamper
-        )
+        self.setChooser = DatasetChooser(self.central_widget, self.plot_widget, self.timestamper, self.session_manager)
         sidebox, sidebox1 = self.setChooser.get_scroll_areas()
         self.data_set.append(self.setChooser)
         sideBoxLayout.addLayout(sidebox)
@@ -452,27 +434,11 @@ class PostGraphModule(QMainWindow):
         self.setChooser.set_active_data()
         self.setChooser.plot_graph()
 
-    def play_graph(self):
+    def play(self):
         self.setChooser.play_graph()
 
-    def pause_graph(self):
+    def pause(self):
         self.setChooser.pause_graph()
-
-    def add_dataset(self):
-        """Deprecated function"""
-        setChooser = DatasetChooser(
-            self.central_widget, self.plot_widget, self.timestamper
-        )
-        self.data_set.append(setChooser)
-        sideBoxLayout = QVBoxLayout()
-        sidebox, sidebox1 = setChooser.get_scroll_areas_without_trim()
-        sideBoxLayout.addLayout(sidebox)
-        sideBoxLayout.addLayout(sidebox1)
-        #sideBoxLayout.insertWidget(-1, self.add_dataset_button)
-        # self.layout.addLayout(sideBoxLayout)
-        collapsible_container = Collapsible()
-        collapsible_container.setContentLayout(sideBoxLayout)
-        self.layout.addWidget(collapsible_container)
 
     def get_info(self):
         """Getter that returns an array with the layouts of the sideboxes"""

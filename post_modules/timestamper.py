@@ -32,10 +32,10 @@ class TimeStamper:
             self.time_stamp += 1
             if self.time_stamp > self.max_time:
                 self.time_stamp = 0
-                print("Yielding frame value:", self.time_stamp)
+                # print("Yielding frame value:", self.time_stamp)
                 yield self.time_stamp
                 break
             if self.slider is not None:
                 self.slider.setValue(int(self.time_stamp / (self.max_time / 100)))
-            print("Yielding frame value:", self.time_stamp)
+            # print("Yielding frame value:", self.time_stamp)
             yield self.time_stamp

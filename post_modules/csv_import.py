@@ -10,9 +10,9 @@ from post_modules.session import Session, SessionManager
 # ------------------------------
 
 class CSVImport(QDialog):
-    def __init__(self, filename: str):
+    def __init__(self, filename: str, session_manager : SessionManager):
         super().__init__()
-
+        self.session_manager = session_manager
         self.df: pd.DataFrame = pd.read_csv(filename)
 
         columns = list(self.df.columns)
@@ -20,41 +20,22 @@ class CSVImport(QDialog):
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
         self.setWindowTitle("Import CSV file")
-        self.setWindowIcon(QIcon("90129757.jpg"))
-
-        # get headers
-        col_select_layout: QGridLayout = QGridLayout()
-        self.combo_time = QComboBox()
-        self.combo_time.addItems(columns)
-
-        #check for laps column
-        self.checkbox = QCheckBox("Enable if CSV contains lap counter, then choose appropriate column:", self)
-        self.checkbox.stateChanged.connect(self.toggle_combobox_state)
-        self.combo_lap = QComboBox()
-        self.combo_lap.setEnabled(False)
-        self.combo_lap.addItems(columns)
+        self.setWindowIcon(QIcon("resources/90129757.jpg"))
 
         # session details
         session_details_layout: QVBoxLayout = QVBoxLayout()
-        self.edit_name = QLineEdit(
-            filename[filename.rfind("/") + 1 : filename.rfind(".")]
-        )
+        self.edit_name = QLineEdit("File Name/Info")
         self.edit_date = QLineEdit(str(date.today()))
+        self.edit_time = QLineEdit(str(date.time()))
         self.edit_driver = QLineEdit("Driver")
         self.edit_car = QLineEdit("Car")
         self.edit_track = QLineEdit("Track Name")
-        self.timestamp_column = QLineEdit("Time (s)")
         session_details_layout.addWidget(self.edit_name)
         session_details_layout.addWidget(self.edit_date)
+        session_details_layout.addWidget(self.edit_time)
         session_details_layout.addWidget(self.edit_driver)
         session_details_layout.addWidget(self.edit_car)
         session_details_layout.addWidget(self.edit_track)
-        session_details_layout.addWidget(self.timestamp_column)
-        session_details_layout.addWidget(QLabel("Select a column which indicates a timestamp:"))
-        session_details_layout.addWidget(self.combo_time)
-        #session_details_layout.addWidget(QLabel("Enable if CSV contains lap counter, then choose appropriate column: "))
-        session_details_layout.addWidget(self.checkbox)
-        session_details_layout.addWidget(self.combo_lap)
 
         # dialog management
         mgmt_layout: QHBoxLayout = QHBoxLayout()
@@ -70,44 +51,45 @@ class CSVImport(QDialog):
         self.layout.addLayout(session_details_layout)
         self.layout.addLayout(mgmt_layout)
 
-    def toggle_combobox_state(self):
-        if self.checkbox.isChecked():
-            self.combo_lap.setEnabled(True)
-        else:
-            self.combo_lap.setEnabled(False)
-
     def cancel(self):
         self.done(0)
 
     def accept(self):
-        time_column_name = self.combo_time.currentText()
-        column_to_move = self.df.pop(time_column_name)
-        self.df.insert(0, time_column_name, column_to_move)
+        timestamp_col = None
+        lap_col = None
+        for col in data_df.columns:
+            if "time" in col.lower():
+                timestamp_col = col
+                break
 
-        print(self.df)
-
-        if (self.checkbox.isChecked()):
-            lap_column_name = self.combo_lap.currentText()
-        else:
-            lap_column_name = ''
+        for col in data_df.columns:
+            if "lap" in col.lower():
+                lap_col = col
+                break
+        
+        if timestamp_col is not None:
+            column_to_move = self.df.pop(timestamp_col)
+            self.df.insert(0, time_column_name, column_to_move)
 
         name = self.edit_name.text()
         date = self.edit_date.text()
+        time = self.edit_time.text()
         driver = self.edit_driver.text()
         car = self.edit_car.text()
         track = self.edit_track.text()
-        #set_session(df, time, lap, name, date, driver, car, track):
-        new_session = set_session(
-            self.df,
-            time_column_name,
-            lap_column_name,
-            name,
-            date,
-            driver,
-            car,
-            track,
-        )
-        add_session(new_session)
+        new_session = Session(
+            name=name,
+            date=date,
+            time=time,
+            driver=driver,
+            car=car,
+            track=track,
+            timestamp=timestamp_col,
+            lap_counter=lap_col,
+            data=self.df
+            )
+
+        self.session_manager.active_sessions.append(new_session)
 
         self.done(1)
         self.hide()
