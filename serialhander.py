@@ -170,7 +170,7 @@ class SerialHandler(QObject):
                 self.clear_temp_data()
                 try:
                     line = self.serial.readline().decode().strip()
-                    print(line)
+                    #print(line)
                     try:
                         mode = int(line[0])
                         data = line.split(',')
@@ -232,7 +232,8 @@ class SerialHandler(QObject):
                         case _:
                             print("SERIALHANDLER IS FAILING ON ALL PROPORTIONS")
                     current_time = time.time()
-                    hertz_rate = 1 / (current_time - self.last_time)
+                    if current_time - self.last_time != 0:
+                        hertz_rate = 1 / (current_time - self.last_time)
                     #print(f"Update rate: {hertz_rate:.2f} Hz")
                     if hertz_rate < 50:
                         hertz_count += 1

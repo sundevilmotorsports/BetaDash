@@ -94,7 +94,7 @@ class LapModule(QMainWindow):
                 Prev_Now_Millis = 0,
                 Prev_Now_Millis_Minus_Starting_Millis=0
             )
-            self.lap_timers_list.addItem("Lap Timer - Gate Number: " + str(lap_data['Gate Number'][-1]))
+            self.lap_timers_list.addItem("Gate Number: " + str(int(lap_data['Gate Number'][-1])))
         else:
             self.lap_timers[lap_data["Gate Number"][-1]].Prev_Now_Millis = self.lap_timers[lap_data["Gate Number"][-1]].Now_Millis
             self.lap_timers[lap_data["Gate Number"][-1]].Prev_Now_Millis_Minus_Starting_Millis = self.lap_timers[lap_data["Gate Number"][-1]].Now_Millis_Minus_Starting_Millis
@@ -109,25 +109,24 @@ class LapModule(QMainWindow):
         self.lap_relative_data_list.clear()
 
         for index, item in enumerate(items):
-            gate_number = int(item.split(":")[-1].strip())
+            gate_number = int(float(item.split(":")[-1].strip()))
             if gate_number in self.lap_timers:
-                val = str(round(self.lap_timers[gate_number].Now_Millis, 3))
+                val = str(round(self.lap_timers[gate_number].Now_Millis/1000, 3))
                 self.lap_global_data_list.addItem(val)
         
         self.zero_index_item_index = None
 
         for index, item in enumerate(items):
-            gate_number = int(item.split(":")[-1].strip())
+            gate_number = int(float(item.split(":")[-1].strip()))
             if gate_number in self.lap_timers and index == 0:
                 self.lap_relative_data_list.addItem(str(0))
                 self.zero_index_item_index = gate_number
+                lap_time = round((self.lap_timers[gate_number].Now_Millis - self.lap_timers[gate_number].Prev_Now_Millis)/1000, 3)
+                if(lap_time != 0):
+                    self.lap_time_label.setText(f"Lap Time: {lap_time}")
             elif gate_number in self.lap_timers and index != 0:
-                val = str(round(self.lap_timers[gate_number].Now_Millis - self.lap_timers[self.zero_index_item_index].Now_Millis, 3))
+                val = str(round((self.lap_timers[gate_number].Now_Millis - self.lap_timers[gate_number-1].Now_Millis)/1000, 3))
                 self.lap_relative_data_list.addItem(val)
-
-        if self.zero_index_item_index is not None and self.lap_timers[self.zero_index_item_index].Prev_Now_Millis != 0:
-            lap_time = round(self.lap_timers[self.zero_index_item_index].Now_Millis - self.lap_timers[self.zero_index_item_index].Prev_Now_Millis, 3)
-            self.lap_time_label.setText(f"Lap Time: {lap_time}")
 
     def zero_out_values(self):
         for gate_number in self.lap_timers:

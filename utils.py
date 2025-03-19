@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 class Utils:
         data_format = [
+            "Mode",
             "Timestamp (ms)",
             "X Acceleration (mG)",
             "Y Acceleration (mG)",
@@ -39,6 +40,7 @@ class Utils:
         ]
 
         telemetry_format = [
+            "Mode",
             "Timestamp (ms)",
             "X Acceleration (mG)",
             "Y Acceleration (mG)",
@@ -75,6 +77,7 @@ class Utils:
         ]
 
         timing_data_format = [
+            "Mode",
             "Gate Number",
             "Starting Year",
             "Starting Month",

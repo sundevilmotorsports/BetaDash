@@ -272,7 +272,8 @@ class Dashboard(QMainWindow):
 
     def update_refresh_rate(self, update_data):
         rate = update_data["Refresh Rate"][-1]
-        self.refresh_rate_label.setText(f"{rate:.1f}" + " Hz")
+        if rate is not None:
+            self.refresh_rate_label.setText(f"{rate:.1f}" + " Hz")
 
     def serial_read_loop(self):
         self.serialmonitor._read_data()
