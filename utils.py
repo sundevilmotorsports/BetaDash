@@ -1,7 +1,6 @@
 from dataclasses import dataclass, field
 class Utils:
         data_format = [
-            "Mode",
             "Timestamp (ms)",
             "X Acceleration (mG)",
             "Y Acceleration (mG)",

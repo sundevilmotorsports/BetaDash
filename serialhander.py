@@ -258,14 +258,11 @@ class SerialHandler(QObject):
             return hertz_rolling_average
         return None
 
-    def emit_data_changed(self):
-        print("Emitting data has changed to all instances of graph_module.py with latest data:", self.data)
-        self.data_changed.emit(self.data)
-
     def stop_reading(self):
         print("Serial Reading is Stopping")
         self.is_reading = False
-        self.serial.close()
+        if self.serial:
+            self.serial.close()
 
     def clear_input_buffer(self):
         while self.serial.in_waiting > 0:

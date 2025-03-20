@@ -16,6 +16,7 @@ class CustomDropList(QListWidget):
         self.itemMoved = True
 
 class LapModule(QMainWindow):
+    log_laps = pyqtSignal(bool)
     def __init__(self, serialhandler):
         super().__init__()
         self.setWindowTitle("Lap Module")
@@ -61,6 +62,10 @@ class LapModule(QMainWindow):
         self.zero_button.setMaximumWidth(200)
         self.zero_button.clicked.connect(self.zero_out_values)
         self.main_layout.addWidget(self.zero_button)
+
+        self.log_laps_button = QPushButton("Add Lap Counter to CSV")
+        self.log_laps_button.setMaximumWidth(200)
+        self.log_laps_button.clicked.connect(self.log_laps_func)
 
         self.layout.addLayout(self.left)
         self.layout.addLayout(self.middle)
@@ -137,3 +142,6 @@ class LapModule(QMainWindow):
 
         self.update_lists()
         self.lap_time_label.setText("Lap Time: 0.000")
+
+    def log_laps_func(self):
+        log_laps.emit()

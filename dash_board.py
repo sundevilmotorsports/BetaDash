@@ -474,7 +474,7 @@ class Dashboard(QMainWindow):
                 new_module = PostGraphModule(self.timestamper, self.session_manager)
                 self.post_modules.append(new_module)
             case "PostLapModule":
-                new_module = PostLapModule(self.session_manager, self.session_manager)
+                new_module = PostLapModule(self.session_manager)
             case _:
                 print("Module Type is Unknown:", module_type)
                 return

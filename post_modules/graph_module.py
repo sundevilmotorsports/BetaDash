@@ -52,17 +52,13 @@ class DatasetChooser(QWidget):
         self.sidebox.setContentsMargins(0, 0, 0, 0)
         self.sidebox2.setContentsMargins(0, 0, 0, 0)
 
-        self.plot_widget.fig.canvas.mpl_connect("button_press_event", self.on_click)
-
         self.left = False
 
         self.sidebox.setAlignment(Qt.AlignTop)
         self.x_combo = QComboBox(self.central_widget)
-        #self.y_combo = QComboBox(self.central_widget)
         self.y_combo = CheckableComboBox(self)
         self.y_combo.setFixedHeight(25)
         self.x_combo.currentIndexChanged.connect(self.plot_graph)
-        #self.y_combo.currentIndexChanged.connect(self.plot_graph)
         self.y_combo.model().dataChanged.connect(self.plot_graph)
 
         # creating dropdowns and updating dataset when changed
@@ -81,12 +77,6 @@ class DatasetChooser(QWidget):
         #integer validation for text boxes
         validator = QIntValidator()
 
-        ###   DEPRECATED AUTOFIT
-        #self.autofit_widget = QCheckBox("Autofit")
-        #self.autofit_widget.stateChanged.connect(self.trim_graph)
-        #trim_upper.addWidget(self.autofit_widget)
-        # self.active_trim_box = QCheckBox("Select Active Trim")
-        # self.active_trim_box.stateChanged.connect(self.select_active_dataset_trim)
         trim_under.addWidget(QLabel("Trim:"))
         self.begin_widget = QLineEdit()
         self.begin_widget.setValidator(validator)
@@ -119,14 +109,6 @@ class DatasetChooser(QWidget):
 
         ### styling for matplotlib
         #plt.style.use('dark_background'), looks bad lmao
-
-    def on_click(self, event):
-        """On click function is called during a click, decides if it is a left click, and calls click_trim() to zoom the graph in/out"""
-        if event.dblclick:
-            if event.button is MouseButton.LEFT:
-                self.left = True
-            self.click_trim()
-            self.left = False
 
     def clear_layout(self, layout):
         """Removes all items from the given layout"""
@@ -209,7 +191,7 @@ class DatasetChooser(QWidget):
         if self.begin_widget.text() == "" or self.end_widget.text() == "":
             return
                
-        self.begin = float(self.begin_widget.text())
+        self.begin = int(self.begin_widget.text())
         self.end = float(self.end_widget.text())
         #self.begin_widget.setEnabled(True)
         #self.end_widget.setEnabled(True)
@@ -239,32 +221,6 @@ class DatasetChooser(QWidget):
         self.plot_widget.draw()
         
         self.connect_trim_connections()
-
-    def click_trim(self):
-        """When called, click_trim() is responsible for adjusting the visible range of data, by about 10%. It zooms in if left click or zooms out if right click"""
-        if (
-            self.begin_widget.text() == ""
-            or self.end_widget.text() == ""
-            #or self.autofit_widget.isChecked()
-        ):
-            return
-
-        if self.left:
-            adjustment = round(int(self.end_widget.text()) * 0.1)
-        else:
-            adjustment = round(int(self.end_widget.text()) * 0.1) * -1
-
-        if (
-            not int(self.begin_widget.text()) + adjustment
-            >= int(self.end_widget.text()) - adjustment
-        ):
-            self.begin_widget.setText(str(int(self.begin_widget.text()) + adjustment))
-            self.end_widget.setText(str(int(self.end_widget.text()) - adjustment))
-
-        self.plot_widget.set_xlim(
-            float(self.begin_widget.text()), float(self.end_widget.text())
-        )
-        self.plot_widget.draw()
 
     def plot_graph(self):
         """When called, this function is responsible for updating and redrawing a graph with user-selected data and settings.
@@ -355,7 +311,8 @@ class DatasetChooser(QWidget):
             self.timestamper.slider.valueChanged.disconnect(self.slider_trim_graph)
             self.trim_connections = []
         except Exception as e:
-            print("Error disconnecting from trim_graph " + str(e))
+            pass
+            # print("Error disconnecting from trim_graph " + str(e))
 
     def connect_trim_connections(self):
         """Reconnects connections to trim_graph."""

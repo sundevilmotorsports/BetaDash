@@ -13,6 +13,7 @@ class CSVImport(QDialog):
     def __init__(self, filename: str, session_manager : SessionManager):
         super().__init__()
         self.session_manager = session_manager
+        self.filename = filename
         self.df: pd.DataFrame = pd.read_csv(filename)
 
         columns = list(self.df.columns)
@@ -71,12 +72,12 @@ class CSVImport(QDialog):
             column_to_move = self.df.pop(timestamp_col)
             self.df.insert(0, time_column_name, column_to_move)
 
-        name = self.edit_name.text()
-        date = self.edit_date.text()
-        time = self.edit_time.text()
-        driver = self.edit_driver.text()
-        car = self.edit_car.text()
-        track = self.edit_track.text()
+        name = self.edit_name.text().strip()
+        date = self.edit_date.text().strip()
+        time = self.edit_time.text().strip()
+        driver = self.edit_driver.text().strip()
+        car = self.edit_car.text().strip()
+        track = self.edit_track.text().strip()
         new_session = Session(
             name=name,
             date=date,
@@ -90,6 +91,10 @@ class CSVImport(QDialog):
             )
 
         self.session_manager.active_sessions.append(new_session)
+
+        base, ext = os.path.splitext(self.filename)
+        new_filename = f"{name}_{date}_{time}_{driver}_{car}_{track}{ext}"
+        self.df.to_csv(new_filename, index=False)
 
         self.done(1)
         self.hide()
