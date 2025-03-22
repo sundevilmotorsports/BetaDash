@@ -89,6 +89,14 @@ class Dashboard(QMainWindow):
         self.toolbar = QHBoxLayout()
         self.layout.addLayout(self.toolbar)
 
+        ### for recording
+        self.recording = False
+        self.record_button = QPushButton("start recording")
+        self.record_button.setMaximumWidth(200)
+        self.record_button.clicked.connect(self.toggle_recording)
+        self.toolbar.addWidget(self.record_button)
+        ###
+
         # Attempt to connect to a serial port
         try:
             # Get a list of available serial ports
@@ -593,6 +601,42 @@ class Dashboard(QMainWindow):
             self.tab_widget.currentChanged.connect(self.on_tab_changed)
         except Exception as e:
             print("lmao lil bro: ", e)
+
+        ##### for recording
+    def toggle_recording(self):
+        if not self.recording:
+            self.recording = True
+            self.serialmonitor.clear_data()
+            self.record_button.setText("end recording")
+        else: # disabling button just in case saving takes time
+            self.recording = False
+            self.record_button.setText("saving in CSV")
+            self.record_button.setDisabled(True)
+            thread = threading.Thread(target=self.save_csv_thread)
+            thread.start()
+
+    def save_csv_thread(self):
+        self.save_csv()
+        QTimer.singleShot(0, self.finish_save)
+
+    def save_csv(self):
+        import pandas as pd
+        data = self.serialmonitor.data
+        if not data or not any(data.values()):
+            return
+        if not os.path.exists("CSVs"):
+            os.makedirs("CSVs", exist_ok=True)
+        filename = os.path.join("CSVs", datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ".csv") # temp format
+        ''' CSVs/{info}_{date_str}_{hour_str}_{driver_str}_{racecar_str}_{location_str}.csv '''
+        df = pd.DataFrame(data)
+        df.to_csv(filename, index=False)
+        self.serialmonitor.clear_data()
+
+    def finish_save(self):
+        self.record_button.setEnabled(True)
+        self.record_button.setText("start recording")
+    #####
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
