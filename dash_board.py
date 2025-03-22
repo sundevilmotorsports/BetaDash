@@ -491,7 +491,6 @@ class Dashboard(QMainWindow):
             return
         importer = CSVImport(filename[0], self.session_manager)
         importer.exec()
-        self.select_session_button.clear()
         self.active_data = self.session_manager.get_active_sessions()[0].data
 
     def create_sql(self):

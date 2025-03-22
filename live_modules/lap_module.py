@@ -16,7 +16,6 @@ class CustomDropList(QListWidget):
         self.itemMoved = True
 
 class LapModule(QMainWindow):
-    log_laps = pyqtSignal(bool)
     def __init__(self, serialhandler):
         super().__init__()
         self.setWindowTitle("Lap Module")
@@ -34,10 +33,12 @@ class LapModule(QMainWindow):
         self.left = QVBoxLayout()
         self.middle = QVBoxLayout()
         self.right = QVBoxLayout()
+        self.extra_right = QVBoxLayout()
 
         self.left.addWidget(QLabel("Lap Timers on Track: "))
         self.middle.addWidget(QLabel("Recent Timestamp: "))
         self.right.addWidget(QLabel("Time Difference: "))
+        self.extra_right.addWidget(QLabel("Sector Times: "))
     
         self.lap_timers = {}
         self.lap_timers_list = CustomDropList()
@@ -52,8 +53,11 @@ class LapModule(QMainWindow):
         self.lap_global_data_list = QListWidget()
         self.middle.addWidget(self.lap_global_data_list)
 
+        self.lap_first_gate_diff_list = QListWidget()
+        self.right.addWidget(self.lap_first_gate_diff_list)
+
         self.lap_relative_data_list = QListWidget()
-        self.right.addWidget(self.lap_relative_data_list)
+        self.extra_right.addWidget(self.lap_relative_data_list)
 
         self.lap_time_label = QLabel("Lap Time: 0.000")
         self.main_layout.addWidget(self.lap_time_label)
@@ -63,13 +67,21 @@ class LapModule(QMainWindow):
         self.zero_button.clicked.connect(self.zero_out_values)
         self.main_layout.addWidget(self.zero_button)
 
-        self.log_laps_button = QPushButton("Add Lap Counter to CSV")
+        self.delete_button = QPushButton("Delete Selected Gate")
+        self.delete_button.setMaximumWidth(200)
+        self.delete_button.clicked.connect(self.delete_selected_gate)
+        self.main_layout.addWidget(self.delete_button)
+
+        self.log_laps_button = QPushButton("Start Logging Laps")
         self.log_laps_button.setMaximumWidth(200)
-        self.log_laps_button.clicked.connect(self.log_laps_func)
+        self.logging_laps_bool : bool = False
+        self.log_laps_button.clicked.connect(self.handle_logging_laps)
+        self.main_layout.addWidget(self.log_laps_button)
 
         self.layout.addLayout(self.left)
         self.layout.addLayout(self.middle)
         self.layout.addLayout(self.right)
+        self.layout.addLayout(self.extra_right)
 
         self.serialhandler = serialhandler
         self.serialhandler.timing_data_changed.connect(self.update)
@@ -81,6 +93,8 @@ class LapModule(QMainWindow):
         self.starting_minute = None
         self.starting_sec = None
         self.starting_millis = None
+
+        self.past_lap_time = 0
 
     @pyqtSlot(dict)
     def update(self, lap_data):
@@ -108,30 +122,46 @@ class LapModule(QMainWindow):
 
         self.update_lists()
 
+
     def update_lists(self):
         items = [self.lap_timers_list.item(x).text() for x in range(self.lap_timers_list.count())]
         self.lap_global_data_list.clear()
+        self.lap_first_gate_diff_list.clear()
         self.lap_relative_data_list.clear()
 
-        for index, item in enumerate(items):
-            gate_number = int(float(item.split(":")[-1].strip()))
-            if gate_number in self.lap_timers:
-                val = str(round(self.lap_timers[gate_number].Now_Millis/1000, 3))
-                self.lap_global_data_list.addItem(val)
+        first_gate_number = int(items[0].split(":")[-1].strip()) if items else None
+        last_gate_number = int(items[len(items)-1].split(":")[-1].strip())
         
-        self.zero_index_item_index = None
-
         for index, item in enumerate(items):
-            gate_number = int(float(item.split(":")[-1].strip()))
-            if gate_number in self.lap_timers and index == 0:
-                self.lap_relative_data_list.addItem(str(0))
-                self.zero_index_item_index = gate_number
-                lap_time = round((self.lap_timers[gate_number].Now_Millis - self.lap_timers[gate_number].Prev_Now_Millis)/1000, 3)
-                if(lap_time != 0):
-                    self.lap_time_label.setText(f"Lap Time: {lap_time}")
-            elif gate_number in self.lap_timers and index != 0:
-                val = str(round((self.lap_timers[gate_number].Now_Millis - self.lap_timers[gate_number-1].Now_Millis)/1000, 3))
-                self.lap_relative_data_list.addItem(val)
+            gate_number = int(item.split(":")[-1].strip())
+            if gate_number in self.lap_timers:
+                val = str(round(self.lap_timers[gate_number].Now_Millis / 1000, 3))
+                self.lap_global_data_list.addItem(val)
+
+                first_gate_diff = round((self.lap_timers[gate_number].Now_Millis - self.lap_timers[first_gate_number].Now_Millis) / 1000, 3) if first_gate_number else 0
+                self.lap_first_gate_diff_list.addItem(str(first_gate_diff))
+
+                if index == 0:
+                    self.lap_relative_data_list.addItem("-")
+                    # self.lap_time_label.setText("Lap Time: 0.000")
+                    lap_time = round((self.lap_timers[first_gate_number].Now_Millis - self.lap_timers[first_gate_number].Prev_Now_Millis)/1000, 3) 
+                    if(lap_time != 0):
+                        # past_lap_time = float(self.lap_time_label.text().split(":")[-1].strip())
+                        if lap_time != self.past_lap_time:
+                            self.past_lap_time = lap_time
+                            self.lap_time_label.setText(f"Lap Time: {lap_time}")
+                            if self.logging_laps_bool:
+                                    self.serialhandler.increment_lap_counter()
+                        else:
+                            self.past_lap_time = lap_time
+                else:
+                    prev_gate_number = int(items[index - 1].split(":")[-1].strip())
+                    if prev_gate_number in self.lap_timers:
+                        val = str(round((self.lap_timers[gate_number].Now_Millis - self.lap_timers[prev_gate_number].Now_Millis) / 1000, 3))
+                        self.lap_relative_data_list.addItem(val)
+                        # lap_time = round((self.lap_timers[gate_number].Now_Millis - self.lap_timers[first_gate_number].Now_Millis) / 1000, 3)
+                        # self.lap_time_label.setText(f"Lap Time: {lap_time}")
+                        
 
     def zero_out_values(self):
         for gate_number in self.lap_timers:
@@ -143,5 +173,19 @@ class LapModule(QMainWindow):
         self.update_lists()
         self.lap_time_label.setText("Lap Time: 0.000")
 
-    def log_laps_func(self):
-        log_laps.emit()
+    def delete_selected_gate(self):
+        selected_items = self.lap_timers_list.selectedItems()
+        for item in selected_items:
+            gate_number = int(item.text().split(":")[-1].strip())
+            if gate_number in self.lap_timers:
+                del self.lap_timers[gate_number]
+            self.lap_timers_list.takeItem(self.lap_timers_list.row(item))
+        self.update_lists()
+
+    def handle_logging_laps(self):
+        if self.logging_laps_bool:
+            self.logging_laps_bool = False
+            self.log_laps_button.setText("Start Logging Laps")
+        else:
+            self.logging_laps_bool = True
+            self.log_laps_button.setText("Stop Logging Laps")
