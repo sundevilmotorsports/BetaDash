@@ -18,12 +18,6 @@ class ReportModule(QMainWindow):
         super().__init__()
         self.setWindowTitle("Report Card")
         self.setGeometry(0, 0, 275, 350)
-        #self.menubar = self.menuBar()
-        #self.menubar.setStyleSheet(
-        #    "background-color: #333; color: white; font-size: 14px;"
-        #)
-        #self.menubar.setStyleSheet("QMenu::item:selected { background-color: #555; }")
-        #self.menubar.setStyleSheet("QMenu::item:pressed { background-color: #777; }")
 
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
@@ -84,19 +78,17 @@ class ReportModule(QMainWindow):
         self.layout.addLayout(self.container)
 
     def get_info(self):
-        """Returns a dictionary containing the state of the ReportModule."""
         return {
             'type': 'ReportModule',
             # Include any state you need to save
         }
     
     def set_info(self, info):
-        """Sets the state of the ReportModule based on the provided info dictionary."""
         # Restore any saved state if needed
         pass  # Implement as necessary
 
     def destructor(self):
-        print("Destructor called, performing cleanup...")
+        # print("Destructor called, performing cleanup...")
         self.serialhandler.data_changed.disconnect(self.update_card)
         del self.central_widget, self.layout, self.container
         del self.len_run, self.peak_accel, self.max_accel, self.peak_braking, self.max_brake, self.peak_cornering, self.max_corner, self.max_fl_wheel_rpm, self.max_fl_rpm
@@ -105,7 +97,7 @@ class ReportModule(QMainWindow):
 
         del self.serialhandler
 
-        print("Cleanup complete.")
+        # print("Cleanup complete.")
 
     @pyqtSlot(dict)
     def update_card(self, new_data):

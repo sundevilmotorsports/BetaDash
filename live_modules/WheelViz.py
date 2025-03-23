@@ -30,8 +30,8 @@ class WheelViz(QWidget):
         self.label.setAlignment(Qt.AlignCenter)
 
         self.image_label = QLabel(self)
-        image = QImage("resources/car_photo.PNG")
-        pixmap = QPixmap("resources/car_photo.PNG")
+        image = QImage("resources/SDM25_TOP_VIEW_v0.1_KADEN.PNG")
+        pixmap = QPixmap("resources/SDM25_TOP_VIEW_v0.1_KADEN.PNG")
         transformed_pixmap = pixmap.transformed(QTransform().rotate(0))
         self.image_label.setPixmap(transformed_pixmap)
 

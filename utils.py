@@ -99,11 +99,11 @@ class LapTimer:
     Starting_Minute : int
     Starting_Second : int
     Starting_Millis : int
+    Converted_Starting_Time : int
     Now_Millis : int
     Now_Millis_Minus_Starting_Millis : int
     Prev_Now_Millis : int
     Prev_Now_Millis_Minus_Starting_Millis : int
-
 
 @dataclass
 class ModuleInfo:
