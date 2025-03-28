@@ -205,6 +205,14 @@ class Dashboard(QMainWindow):
             widget = ReportModule(self.serialmonitor)
         elif module_info.moduleType == 'LabelModule':
             widget = LabelModule(self.serialmonitor, module_info.info.get('data_type', "Timestamp (ms)"))
+        elif module_info.moduleType == "ggModule":
+            widget = ggModule(self.serialmonitor)
+        elif module_info.moduleType == 'rgModule':
+            widget = rgModule(self.serialmonitor)
+        elif module_info.moduleType == 'LapModule':
+            widget = LapModule(self.serialmonitor)
+        elif module_info.moduleType == 'PostGraphModule':
+            widget = PostGraphModule(self.timestamper, self.session_manager)
         else:
             return 
 
@@ -336,6 +344,13 @@ class Dashboard(QMainWindow):
         self.lap_module_button.setMaximumWidth(200)
         self.lap_module_button.clicked.connect(lambda: self.create_module("LapModule"))
 
+        ### for recording
+        self.recording = False
+        self.record_button = QPushButton("Start Recording")
+        self.record_button.setMaximumWidth(200)
+        self.record_button.clicked.connect(self.toggle_recording)
+        ###
+
         # self.radio_button = QRadioButton("USE SQL")
         # self.radio_button.setChecked(False)
         # self.radio_button.clicked.connect(self.create_sql)
@@ -375,6 +390,7 @@ class Dashboard(QMainWindow):
         self.toolbar.addWidget(self.report_module_button)
         self.toolbar.addWidget(self.wheelviz_button)
         self.toolbar.addWidget(self.lap_module_button)
+        self.toolbar.addWidget(self.record_button)
         # self.toolbar.addWidget(self.radio_button)
         # self.toolbar.addWidget(self.write_sql_button)
         self.toolbar.addWidget(self.save_dashboard_button)
@@ -593,6 +609,42 @@ class Dashboard(QMainWindow):
             self.tab_widget.currentChanged.connect(self.on_tab_changed)
         except Exception as e:
             print("lmao lil bro: ", e)
+
+        ##### for recording
+    def toggle_recording(self):
+        if not self.recording:
+            self.recording = True
+            self.serialmonitor.clear_data()
+            self.record_button.setText("End Recording")
+        else: # disabling button just in case saving takes time
+            self.recording = False
+            self.record_button.setText("Saving in CSV")
+            self.record_button.setDisabled(True)
+            thread = threading.Thread(target=self.save_csv_thread)
+            thread.start()
+
+    def save_csv_thread(self):
+        self.save_csv()
+        QTimer.singleShot(0, self.finish_save)
+
+    def save_csv(self):
+        import pandas as pd
+        data = self.serialmonitor.data
+        if not data or not any(data.values()):
+            return
+        if not os.path.exists("CSVs"):
+            os.makedirs("CSVs", exist_ok=True)
+        filename = os.path.join("CSVs", datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ".csv") # temp format
+        ''' CSVs/{info}_{date_str}_{hour_str}_{driver_str}_{racecar_str}_{location_str}.csv '''
+        df = pd.DataFrame(data)
+        df.to_csv(filename, index=False)
+        self.serialmonitor.clear_data()
+
+    def finish_save(self):
+        self.record_button.setEnabled(True)
+        self.record_button.setText("Start Recording")
+    #####
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

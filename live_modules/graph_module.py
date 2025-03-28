@@ -70,7 +70,7 @@ class GraphModule(QMainWindow):
     def __init__(self, serialhandler : SerialHandler):
         super().__init__()
         self._cleanup_done = False
-        self.setWindowTitle("Graph Module")
+        self.setWindowTitle(" Graph Module")
         self.setGeometry(100, 100, 1050, 600)
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
@@ -149,12 +149,6 @@ class GraphModule(QMainWindow):
         collapsible_container.setContentLayout(self.sideBoxLayout)
         self.layout.addWidget(collapsible_container)
 
-        self.checkbox = QCheckBox("Toggle Crosshair")
-        self.checkbox.setChecked(False)
-        self.sidebox.addWidget(self.checkbox)
-        self.crosshair_enable = False
-        self.checkbox.stateChanged.connect(self.toggle)
-
         self.initialize_combo_boxes()
 
         self.last_mouse_position = [0, 0]
@@ -171,7 +165,6 @@ class GraphModule(QMainWindow):
         if self._cleanup_done:
             return  # Skip cleanup if already done
         #print("Destructor called, performing cleanup...")
-        self.checkbox.stateChanged.disconnect(self.toggle)
         self.serialhandler.data_changed.disconnect(self.update_graph)
         try:
             self.plot_widget.scene().sigMouseMoved.disconnect(self.mouseMoved)
@@ -181,7 +174,7 @@ class GraphModule(QMainWindow):
 
         del (self.central_widget, self.layout, self.plot_widget, 
             self.pen, self.sidebox, self.sidebox2, self.x_combo, self.y_combo,  self.selected_y_columns, 
-            self.selected_x, self.checkbox, self.crosshair_enable, self.last_mouse_position, self.escalation_status,
+            self.selected_x,self.last_mouse_position, self.escalation_status,
             self.events, self.event_markers, self.serialhandler)
         self._cleanup_done = True
         #print("Cleanup complete.")
@@ -205,79 +198,6 @@ class GraphModule(QMainWindow):
         color = QColorDialog.getColor()
         if color.isValid(): 
             self.pen.setColor(color)
-        
-    def initCrosshair(self):
-        if self.crosshair_enable:
-            self.crosshair_v = pg.InfiniteLine(angle=90, movable=False)
-            self.crosshair_h = pg.InfiniteLine(angle=0, movable=False)
-            self.plot_widget.addItem(self.crosshair_v, ignoreBounds=True)
-            self.plot_widget.addItem(self.crosshair_h, ignoreBounds=True)
-
-            self.x_label = pg.TextItem("")
-            self.y_label = pg.TextItem("")
-            self.plot_widget.addItem(self.x_label)
-            self.plot_widget.addItem(self.y_label)
-
-            #self.proxy = pg.SignalProxy(self.plot_widget.scene().sigMouseMoved, rateLimit=60, slot=self.mouseMoved)
-            self.plot_widget.scene().sigMouseMoved.connect(self.mouseMoved)
-
-    def removeCrosshair(self):
-        try:
-            self.plot_widget.removeItem(self.crosshair_h)
-            self.plot_widget.removeItem(self.crosshair_v)
-            self.plot_widget.removeItem(self.x_label)
-            self.plot_widget.removeItem(self.y_label)
-        except Exception as e:
-            print(str(e))
-
-    def mouseMoved(self, e):
-        pos = e
-        #pos = e[0]
-        if self.plot_widget.sceneBoundingRect().contains(pos):
-            mousePoint = self.plot_widget.plotItem.vb.mapSceneToView(pos)
-            x_pos = mousePoint.x()
-            y_pos = mousePoint.y()
-            y_min, y_max = self.plot_widget.viewRange()[1]
-            y_offset_multiplier = 0.05
-            y_offset = (y_max - y_min) * y_offset_multiplier
-            x_text = f"X: {x_pos:.2f}"  # Limiting digits to 2 decimal places
-            y_text = f"Y: {y_pos:.2f}"  # Limiting digits to 2 decimal places
-            self.x_label.setText(x_text)
-            self.y_label.setText(y_text)
-            label_color = pg.mkColor('g')
-            self.x_label.setColor(label_color)
-            self.y_label.setColor(label_color)
-            self.x_label.setPos(x_pos, y_pos)
-            self.y_label.setPos(x_pos, y_pos-y_offset)
-            self.crosshair_v.setPos(x_pos)
-            self.crosshair_h.setPos(y_pos)
-            self.last_mouse_position = [x_pos, y_pos]
-
-    def toggle(self, state):
-        if state == 0:
-            self.crosshair_enable = False
-            self.removeCrosshair()
-            print("Checkbox is unchecked")
-        else:
-            self.crosshair_enable = True
-            #self.initCrosshair()
-            print("Checkbox is checked crosshair disabled rn")
-
-    def mouseClicked(self, e):
-        pos = e
-        if self.plot_widget.sceneBoundingRect().contains(pos):
-            mousePoint = self.plot_widget.plotItem.vb.mapSceneToView(pos)
-            x_pos = mousePoint.x()
-            #y_pos = mousePoint.y()
-
-        self.escalation_status = self.escalation_status + 1
-        if self.escalation_status == 2:
-            self.events.append(int(x_pos))
-            event_marker = pg.InfiniteLine(pos=x_pos, angle=90, movable=False)
-            #event_marker.setPos(x_pos)
-            self.plot_widget.addItem(event_marker, ignoreBounds=True)
-            self.escalation_status = 0
-            self.event_markers.append([event_marker, x_pos])
         
     def initialize_combo_boxes(self):
         # Clear existing items from combo boxes
@@ -336,12 +256,17 @@ class GraphModule(QMainWindow):
         last_row = len(self.plot_items)
         for y_col in y_columns:
             if y_col in self.plot_items:
-                # Update existing plot
-                plot_item = self.plot_items[y_col]
-                row_idx = list(self.plot_items.keys()).index(y_col) 
-                #plot_item.data_item.getViewBox().enableAutoRange(axis='x', enable=True)
-                self.plot_widget.ci.addItem(plot_item.plot_item, row=row_idx, col=0)
-                #plot_item.data_item.getViewBox().autoRange()
+                if self.plot_items[y_col].plot_item:
+                    # Update existing plot
+                    plot_item = self.plot_items[y_col]
+                    row_idx = list(self.plot_items.keys()).index(y_col) 
+                    #plot_item.data_item.getViewBox().enableAutoRange(axis='x', enable=True)
+                    self.plot_widget.ci.addItem(plot_item.plot_item, row=row_idx, col=0)
+                    #plot_item.data_item.getViewBox().autoRange()
+                else:
+                    plot_item = pg.PlotItem()
+                    row_idx = list(self.plot_items.keys()).index(y_col) 
+                    self.plot_widget.ci.addItem(plot_item, row=row_idx, col=0)
             else:
                 # Create new plot
                 color = self.rainbow_colors[self.color_index % len(self.rainbow_colors)]
@@ -478,34 +403,53 @@ class GraphModule(QMainWindow):
         return {
             'type': 'GraphModule',
             'x_axis': self.x_combo.currentText(),
-            'y_axis': self.y_combo.currentData(),
-            'color': self.pen.color().name(),
+            'plot_items': {
+                key: {
+                    'y_column': item.y_column,
+                    'line_color': item.line_color.name(),
+                    'label_item': item.label_item.toPlainText() if item.label_item is not None else None,
+                    'x_column_data': item.data_item.getData()[0], 
+                    'y_column_data': item.data_item.getData()[1],
+                }
+                for key, item in self.plot_items.items()
+            },
             'queue_size': self.queue_size_slider.value(),
-            'crosshair_enabled': self.crosshair_enable,
         }
 
     def set_info(self, info):
         if 'x_axis' in info:
+            self.initialize_combo_boxes()
             index = self.x_combo.findText(info['x_axis'])
-            if index >= 0:
-                self.x_combo.setCurrentIndex(index)
-            else:
-                print(f"Warning: X axis '{info['x_axis']}' not found in combo box.")
+            self.x_combo.setCurrentIndex(index)
 
-        if 'y_axis' in info:
-            for i in range(self.y_combo.model().rowCount()):
-                item = self.y_combo.model().item(i)
-                if item.data() in info['y_axis'] or item.text() in info['y_axis']:
-                    item.setCheckState(Qt.Checked)
+        if 'plot_items' in info:
+            self.plot_items = {}
+            y_columns = [item.get('y_column') for _, item in info['plot_items'].items()]
+            for key, item in info['plot_items'].items():
+                if isinstance(item, dict):
+                    last_row = len(self.plot_items)
+                    plot = self.plot_widget.addPlot(row=last_row, col=0)
+                    color = QColor(item.get('line_color'))
+                    # x_data = item.get('x_column_data', [])
+                    # y_data = item.get('y_column_data', [])
+                    data_item = plot.plot(pen=pg.mkPen(color=color, width=1))
+
+                    self.plot_items[key] = PlotItem(
+                        plot_item=plot, 
+                        data_item=data_item,
+                        y_column=item.get('y_column'),
+                        line_color=QColor(item.get('line_color')),
+                        label_item=item.get('label_item', None),
+                        math_ch=None,
+                        math_ch_str=None,
+                    )
                 else:
-                    item.setCheckState(Qt.Unchecked)
-        if 'color' in info:
-            color = QColor(info['color'])
-            self.pen.setColor(color)
+                    print(f"Warning: Unexpected data format in plot_items: {key} -> {item}")
+
+            self.y_combo.setCurrentItems(y_columns)
+            self.modify_plots([], [], [])
         if 'queue_size' in info:
             self.queue_size_slider.setValue(info['queue_size'])
-        if 'crosshair_enabled' in info:
-            self.checkbox.setChecked(info['crosshair_enabled'])
 
     def get_graph_type(self):
         return "GraphModule"

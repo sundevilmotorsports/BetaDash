@@ -82,3 +82,4 @@ class SessionManager():
         print("Importing CSVs")
         for file in csv_files:
             self.load_session(file)  # trying to remove csv directory, in case i need later.split("/")[-1]
+        print("Done Importing CSVs")

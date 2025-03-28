@@ -4,114 +4,135 @@ from matplotlib.backends.backend_qt5agg import (
     FigureCanvasQTAgg,
     NavigationToolbar2QT as NavigationToolbar,
 )
-from matplotlib.backend_bases import MouseButton
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from PyQt5.QtWidgets import *
-from PyQt5.QtGui import QIntValidator, QPalette, QFontMetrics, QStandardItem
-from PyQt5.QtCore import Qt, QObject, QEvent
+from PyQt5.QtCore import Qt
 from collapsible_module import Collapsible
 from checkable_combo import CheckableComboBox
 from post_modules.session import Session, SessionManager
 from post_modules.timestamper import TimeStamper
+import mpl_interactions.ipyplot as iplt
 
-# ------------------------------
-# Custom Class for our GraphModule. By inheriting from it, we can create a custom canvas for Matplotlib within the PyQt application.
-# Line outside the class tells the application that the backend for Matplotlib will use Qt5Agg,
-# which is the backend that integrates Matplotlib with the PyQt5 framework. It tells Matplotlib
-# to render plots using Qt for the graphical user interface.
-# ------------------------------
-
+# Set the Matplotlib backend to Qt5Agg for PyQt5
 matplotlib.use("Qt5Agg")
 
-class MplCanvas(FigureCanvasQTAgg):
-    activeXY = [[], []]
+class PostGraphModule(QMainWindow):
+    activeXY = [[], []]  # Retained from original MplCanvas
 
-    def __init__(self, parent=None):
+    def __init__(self, timestamper: TimeStamper, session_manager: SessionManager):
+        super().__init__()
+        self.timestamper = timestamper
+        self.session_manager = session_manager
+
+        self.setWindowTitle(" Post Graph Module")
+        self.setGeometry(100, 100, 950, 600)
+        self.central_widget = QWidget()
+        self.setCentralWidget(self.central_widget)
+        self.layout = QVBoxLayout(self.central_widget)
+        self.layout.setContentsMargins(0, 0, 0, 0)
+
+        self.layout_main = QHBoxLayout()
+        self.layout.addLayout(self.layout_main)
+
         self.fig = Figure()
         self.ax1 = self.fig.add_subplot(111)
-        super(MplCanvas, self).__init__(self.fig)
+        self.canvas = FigureCanvasQTAgg(self.fig)
+        self.canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.fig.tight_layout()
 
-# ------------------------------
-# Custom class named DatasetChooser. This is the sidebar that provides functionality to select datasets,
-# customize data visualization settings, and update and animate graphs using Matplotlib.
-# It connects various widgets and signals to provide an interactive data visualization experience.
-# ------------------------------
-class DatasetChooser(QWidget):
-    def __init__(self, central_widget: QWidget, plot: MplCanvas, timestamper: TimeStamper, session_manager : SessionManager):
-        super().__init__()
-        self.central_widget = central_widget
-        self.plot_widget = plot
-        self.session_manager = session_manager
+        graph_widget = QWidget()
+        plot_layout = QVBoxLayout(graph_widget)
+        plot_layout.addWidget(self.canvas)
+        plot_layout.setContentsMargins(0, 0, 0, 0)
+        self.layout_main.addWidget(graph_widget)
+
         self.sidebox = QVBoxLayout()
         self.sidebox2 = QVBoxLayout()
-        self.timestamper = timestamper
-        #self.timestamper.slider.valueChanged.connect(lambda: self.trim_graph(source="slider"))
-
         self.sidebox.setContentsMargins(0, 0, 0, 0)
         self.sidebox2.setContentsMargins(0, 0, 0, 0)
-
-        self.left = False
-
         self.sidebox.setAlignment(Qt.AlignTop)
-        self.x_combo = QComboBox(self.central_widget)
+
+        self.dataset_combo = QComboBox()
+        # self.dataset_combo.showEvent = lambda _: self.init_metadata()
+        self.dataset_combo.currentIndexChanged.connect(self.set_active_data)
+
+        self.x_combo = QComboBox()
+        self.x_combo.currentIndexChanged.connect(self.plot_graph)
+
         self.y_combo = CheckableComboBox(self)
         self.y_combo.setFixedHeight(25)
-        self.x_combo.currentIndexChanged.connect(self.plot_graph)
         self.y_combo.model().dataChanged.connect(self.plot_graph)
 
-        # creating dropdowns and updating dataset when changed
-        self.x_set = QComboBox(self.central_widget)
-        self.x_set.showEvent = lambda _: self.init_metadata()
-        self.x_set.currentIndexChanged.connect(self.set_active_data)
-
-        # creates labels and textboxes for editing graph limits and trims
-        trim_upper = QHBoxLayout()
-        trim_under = QHBoxLayout()
-        self.trim_container = QVBoxLayout()
-
-        self.selected_y_columns = None
-        self.selected_x = None
-
-        #integer validation for text boxes
-        validator = QIntValidator()
-
-        trim_under.addWidget(QLabel("Trim:"))
-        self.begin_widget = QLineEdit()
-        self.begin_widget.setValidator(validator)
-        self.begin_widget.setFixedWidth(50)
-        #self.begin_widget.textChanged.connect(lambda: self.trim_graph(source="begin_widget"))
-        trim_under.addWidget(self.begin_widget)
-        trim_under.addWidget(QLabel("≤ x ≤"))
-        self.end_widget = QLineEdit()
-        self.end_widget.setValidator(validator)
-        self.end_widget.setFixedWidth(50)
-        #self.end_widget.textChanged.connect(lambda: self.trim_graph(source="end_widget"))
-        trim_under.addWidget(self.end_widget)
-        self.trim_container.addLayout(trim_upper)
-        self.trim_container.addLayout(trim_under)
-
-        ### array for managing all connections that call to trim_graph
-        self.connect_trim_connections()
-
-        # creates labels and adds comboboxes to select columns in the graph
-        self.set_combo_box()
         self.sidebox.addWidget(QLabel("Select Dataset:"))
-        self.sidebox.addWidget(self.x_set)
+        self.sidebox.addWidget(self.dataset_combo)
         self.sidebox.addWidget(QLabel("Select X Axis Column:"))
         self.sidebox.addWidget(self.x_combo)
         self.sidebox.addWidget(QLabel("Select Y Axis Column:"))
         self.sidebox.addWidget(self.y_combo)
-        self.sidebox.addLayout(self.trim_container)
 
-        self.sidebox2.setAlignment(Qt.AlignTop)
+        sideBoxLayout = QVBoxLayout()
+        sideBoxLayout.addLayout(self.sidebox)
+        sideBoxLayout.addLayout(self.sidebox2)
 
-        ### styling for matplotlib
-        #plt.style.use('dark_background'), looks bad lmao
+        self.reset_button = QPushButton("Reset")
+        self.reset_button.setMaximumWidth(150)
+        self.reset_button.clicked.connect(self.reset)
+        sideBoxLayout.addWidget(self.reset_button)
+
+        self.slider_container = QHBoxLayout()
+        self.slider_label = QLabel("0: ")
+        self.slider_label.setFixedWidth(50)
+        self.slider_container.addWidget(self.slider_label)
+
+        self.slider = QSlider(Qt.Horizontal)
+        self.slider.setTickInterval(1)
+        self.slider.setTickPosition(QSlider.TicksBelow)
+        self.slider.valueChanged.connect(self.update_graph_trim)
+        self.slider_container.addWidget(self.slider)
+
+        self.window_size_label = QLabel("Adjust Window Size")
+        self.sidebox2.addWidget(self.window_size_label)
+
+        self.window_slider = QSlider(Qt.Horizontal)
+        self.window_slider.setTickInterval(1)
+        self.window_slider.setTickPosition(QSlider.TicksBelow)
+        self.window_slider.valueChanged.connect(self.update_graph_trim)
+        self.sidebox2.addWidget(self.window_slider)
+
+        self.name_label = QLabel("Name: ")
+        self.date_label = QLabel("Date: ")
+        self.driver_label = QLabel("Driver: ")
+        self.car_label = QLabel("Car: ")
+        self.track_label = QLabel("Track: ")
+
+        self.sidebox2.addWidget(self.name_label)
+        self.sidebox2.addWidget(self.date_label)
+        self.sidebox2.addWidget(self.driver_label)
+        self.sidebox2.addWidget(self.car_label)
+        self.sidebox2.addWidget(self.track_label)
+
+        self.collapsible_container = Collapsible()
+        self.collapsible_container.setContentLayout(sideBoxLayout)
+        self.layout_main.addWidget(self.collapsible_container)
+
+        self.bottom_layout = QVBoxLayout()
+        self.bottom_layout.addLayout(self.slider_container)
+        self.sidebox2.addWidget(self.reset_button)
+
+        self.layout.addLayout(self.bottom_layout)
+
+        # Additional attributes
+        self.selected_y_columns = None
+        self.selected_x = None
+        self.active_dataX = None
+        self.ani = None  
+
+        # Initialize combo boxes
+        self.set_combo_box()
 
     def clear_layout(self, layout):
-        """Removes all items from the given layout"""
         while layout.count():
             item = layout.takeAt(0)
             widget = item.widget()
@@ -119,148 +140,88 @@ class DatasetChooser(QWidget):
                 widget.deleteLater()
 
     def set_combo_box(self):
-        """Populates ComboBoxes with all different columns within the active data"""
-        try:    
+        try:
             names = self.session_manager.get_filenames()
             data = self.session_manager.active_sessions
-            self.x_set.addItems(names)
+            self.dataset_combo.clear()
+            self.dataset_combo.addItems(names)
             self.x_combo.clear()
             self.y_combo.clear()
-            self.active_dataX = data[0].data
+            self.active_dataX = data[self.dataset_combo.currentIndex()].data
             self.x_combo.addItems(self.active_dataX.columns.tolist())
             self.y_combo.addItems(self.active_dataX.columns.tolist())
-        except:
-            print("Error setting combo box")
-
-    def init_combobox(self, xSet, xSelect, ySelect):
-        """Sets the front-text of comboboxes within the sidebar to the currently selected column within the active dataset"""
-        self.x_set.setCurrentText(xSet)
-        self.x_combo.setCurrentText(xSelect)
-        self.y_combo.setCurrentText(ySelect)
-
-    def get_scroll_areas(self):
-        """returns both sidebox layouts"""
-        return self.sidebox, self.sidebox2
-
-    def get_scroll_areas_without_trim(self):
-        """returns both sidebox layouts"""
-        tempSidebox1 = self.sidebox
-        tempSidebox2 = self.sidebox2
-        tempSidebox1.removeItem(self.trim_container)
-        tempSidebox2.removeItem(self.trim_container)
-        return self.sidebox, self.sidebox2
+        except Exception as e:
+            print("Error setting combo box: ", e)
 
     def set_active_data(self):
-        """Modifies self.active_dataX and sets it to the dataframe in which the "set x" value is. It then calls trim_graph() and plot_graph()."""
+        """Updates the active dataset and repopulates column selections"""
         self.x_combo.clear()
         self.y_combo.clear()
-
-        self.init_metadata()
-
-        self.active_dataX = self.session_manager.active_sessions[self.x_set.currentIndex()].data
-        self.x_combo.addItems(self.active_dataX.columns.tolist())
-        self.y_combo.addItems(self.active_dataX.columns.tolist())
-        ###TAKE NOTE THE NEXT 3 LINES CALL trim_graph 3 TIMES, don't think we want from a performance and maintenance perspective
-        self.begin_widget.setText(str(self.active_dataX[self.selected_x].iloc[0]))
-        self.end_widget.setText(str(self.active_dataX[self.selected_x].iloc[-1]))
-        self.timestamper.set_init_time(self.active_dataX[self.selected_x].iloc[0])
-        self.timestamper.set_max_time(self.active_dataX[self.selected_x].iloc[-1])
-        self.trim_graph()
-        self.plot_graph()
-
-    def init_metadata(self):
-        """This function simply populates some of the labels with the metadata from the chosen metadata data frame"""
         try:
-            self.clear_layout(self.sidebox2)
-            self.dataX = self.session_manager.active_sessions[self.x_set.currentIndex()]
+            self.active_dataX = self.session_manager.active_sessions[self.dataset_combo.currentIndex()].data
+            self.x_combo.addItems(self.active_dataX.columns.tolist())
+            self.y_combo.addItems(self.active_dataX.columns.tolist())
+            
+            dataX = self.session_manager.active_sessions[self.dataset_combo.currentIndex()]
+            self.name_label.setText(f"Name: {dataX.name}")
+            self.date_label.setText(f"Date: {dataX.date}")
+            self.driver_label.setText(f"Driver: {dataX.driver}")
+            self.car_label.setText(f"Car: {dataX.car}")
+            self.track_label.setText(f"Track: {dataX.track}")
 
-            self.sidebox2.addWidget(QLabel("Name: " + self.dataX.name))
-            self.sidebox2.addWidget(QLabel("Date: " + self.dataX.date))
-            self.sidebox2.addWidget(QLabel("Driver: " + self.dataX.driver))
-            self.sidebox2.addWidget(QLabel("Car: " + self.dataX.car))
-            self.sidebox2.addWidget(QLabel("Track: " + self.dataX.track))
-        except:
-            print("Error initializing metadata")
+            self.timestamper.set_init_time(self.active_dataX[self.x_combo.currentText()].iloc[0])
+            self.timestamper.set_max_time(self.active_dataX[self.x_combo.currentText()].iloc[-1])
+            x_values = self.active_dataX[self.selected_x].values
+            self.slider.setMinimum(int(x_values.min()))
+            self.slider.setMaximum(int(x_values.max() - self.window_slider.value() / 2))
+            self.window_slider.setMinimum(1)
+            self.window_slider.setMaximum(min(1000, int(x_values.max())))
+            self.plot_graph()
+        except Exception as e:
+            print("Error in set_active_data: ", e)
 
-    def trim_graph(self):        
-        """Function that when called, will edit the bounds of the graph based on whether autofit is selected or not. Otherwise values in textboxes will be set to the bounds"""
-        # print("normal trim or end or begin")
-        
-        self.disconnect_trim_connections()
+    def update_graph_trim(self, value):
+        slider_val = self.slider.value()
+        window_val = self.window_slider.value()
+        x_min = slider_val - window_val / 2
+        x_max = slider_val + window_val / 2
 
-        if self.begin_widget.text() == "" or self.end_widget.text() == "":
-            return
-               
-        self.begin = int(self.begin_widget.text())
-        self.end = float(self.end_widget.text())
-        #self.begin_widget.setEnabled(True)
-        #self.end_widget.setEnabled(True)
+        if x_min == x_max:
+            x_max += 1
 
-        self.timestamper.set_init_time(self.begin)
-        #self.timestamper.set_max_time(self.end)
-        self.begin_widget.setText(str(int(self.begin)))
-        self.end_widget.setText(str(int(self.end))) 
-        # Check if _plot_ref is not None and has valid axes
-        self.plot_widget.ax1.set_xlim(self.begin, self.end)
-        self.plot_widget.draw()
-        
-        self.connect_trim_connections()
-        
-    def slider_trim_graph(self):
-        # print("slider trim")
-        
-        self.disconnect_trim_connections()
-
-        self.begin = float(self.timestamper.slider.value() * (self.timestamper.max_time / 100))
-        self.end = float(self.begin + 100)
-        self.timestamper.set_init_time(self.begin)
-        #self.timestamper.set_max_time(self.end)
-        self.begin_widget.setText(str(int(self.begin)))
-        self.end_widget.setText(str(int(self.end)))
-        self.plot_widget.ax1.set_xlim(self.begin, self.end)
-        self.plot_widget.draw()
-        
-        self.connect_trim_connections()
+        self.ax1.set_xlim(x_min, x_max)
+        self.canvas.draw()
+        self.slider_label.setText(str(slider_val))
 
     def plot_graph(self):
-        """When called, this function is responsible for updating and redrawing a graph with user-selected data and settings.
-        It then 'draws' the graph, meaning it is an update to the appearance of a graph rather than a creation of a new plot. The performance
-        difference could be negligible here. More importantly, limit every possible call to redraw the graph as much as one can
-        """
+        """Clears and redraws the graph using the selected x and y columns"""
         try:
             self.selected_x = self.x_combo.currentText()
             self.selected_y_columns = self.y_combo.currentData()
-            
-            if not isinstance(self.selected_y_columns, list):
-                self.selected_y_columns = [self.selected_y_columns]
 
-            # Extract the selected columns from self.active_dataX
             y_data = self.active_dataX[self.selected_y_columns]
 
-            self.plot_widget.ax1.clear()
-            # print(self.selected_y_columns)
+            self.ax1.clear()
             for col in self.selected_y_columns:
-                self.plot_widget.ax1.plot(self.active_dataX[self.selected_x], self.active_dataX[col], label=col)
-                
-            self.plot_widget.ax1.set_xlabel(self.selected_x)
-            self.plot_widget.ax1.set_ylabel(", ".join(self.selected_y_columns))
-            self.plot_widget.ax1.set_title(self.selected_x + " vs " + ", ".join(self.selected_y_columns))
-            self.plot_widget.ax1.grid()
+                self.ax1.plot(self.active_dataX[self.selected_x], self.active_dataX[col], label=col)
+            self.ax1.set_xlabel(self.selected_x)
+            self.ax1.set_ylabel(", ".join(self.selected_y_columns))
+            self.ax1.set_title(self.selected_x + " vs " + ", ".join(self.selected_y_columns))
+            self.ax1.grid()
             if not y_data.empty:
-                self.plot_widget.ax1.legend(loc='lower left')
-            self.plot_widget.ax1.set_xlim(self.begin, self.end)
-            self.plot_widget.draw()
+                self.ax1.legend(loc='lower left')
+            self.canvas.draw()
         except Exception as e:
-            print("Error plotting graph: " + str(e))
+            print("Error plotting graph: ", e)
 
     def play_graph(self):
-        """Animating of graph is simply a function animation where the timestamper sends a new integer value. Usually one more than last time, it is fed into the animate() function where the xlimits are simply updated to fit the new timestamper value"""
+        """Starts or resumes graph animation using a timestamp generator from the timestamper"""
         try:
-            if hasattr(self, "ani") and self.ani.event_source != None:
+            if self.ani is not None and self.ani.event_source is not None:
                 self.ani.resume()
                 return
             self.ani = animation.FuncAnimation(
-                self.plot_widget.fig,
+                self.fig,
                 self.animate,
                 frames=self.timestamper.time_generator,
                 interval=100,
@@ -268,146 +229,62 @@ class DatasetChooser(QWidget):
                 save_count=50,
                 cache_frame_data=True,
             )
-            self.plot_widget.draw()
+            self.canvas.draw()
         except Exception as e:
-            #self.plot_graph()
-            print("Error re-drawing graph: " + str(e))
-       
+            print("Error re-drawing graph: ", e)
 
     def animate(self, timestamp):
-        """Helper for the animation, adds new data points to X and Y data lists, clears the existing plot, and then re-plots the updated data with new labels, a title, and a grid.
-        WARNING: use of plot() could be better than draw(), but we made it necessary that the function will use plot() because of adding to the active x and y datasets
-        """
-        ###allows modifying of labels without calling trim graph
-        ##### also i wanted to move this into play_graph() but didnt work so its here.
-        # print("timestamp fed into animate: " + str(timestamp))
-        
-        self.disconnect_trim_connections()
-        
-        self.plot_widget.ax1.set_xlim(max(1, timestamp - 100), max(2, timestamp))
-        #print("xlim min: " + str(max(1, timestamp - 100)) + "; xlim max: " + str(max(2, timestamp)))
-        self.begin_widget.setText(str(int(self.plot_widget.ax1.get_xlim()[0])))
-        self.end_widget.setText(str(int(self.plot_widget.ax1.get_xlim()[1])))
+        """Animation callback that updates the x-axis limits based on the current timestamp"""
+        self.ax1.set_xlim(max(1, timestamp - 100), max(2, timestamp))
 
-        self.connect_trim_connections()
-    
     def pause_graph(self):
-        """Pauses the graph animation"""
+        """Pauses the animation if it is running"""
         try:
-            self.ani.pause()
+            if self.ani is not None:
+                self.ani.pause()
         except Exception as e:
-            print("Error pausing graph " + str(e))
-        ###Need to re-establish connections after pause
-        
-        self.disconnect_trim_connections()
-        self.connect_trim_connections()
-
-
-    def disconnect_trim_connections(self):
-        """Disconnects connections to trim_graph."""
-        try:
-            self.begin_widget.textChanged.disconnect(self.trim_graph)
-            self.end_widget.textChanged.disconnect(self.trim_graph)
-            self.timestamper.slider.valueChanged.disconnect(self.slider_trim_graph)
-            self.trim_connections = []
-        except Exception as e:
-            pass
-            # print("Error disconnecting from trim_graph " + str(e))
-
-    def connect_trim_connections(self):
-        """Reconnects connections to trim_graph."""
-        self.trim_connections = []
-        self.trim_connections.append(self.begin_widget.textChanged.connect(self.trim_graph))
-        self.trim_connections.append(self.end_widget.textChanged.connect(self.trim_graph))
-        self.trim_connections.append(self.timestamper.slider.valueChanged.connect(self.slider_trim_graph))
-
-    def get_info(self):
-        """Returns value of self.x_set, the combobox for selecting the current dataset or csv. additionally it returns the current x and y columns"""
-        return self.x_set.currentText(), self.selected_x, self.selected_y_columns
-
-
-# ------------------------------
-# This class creates a graphical application with a main window that allows users to add and configure multiple datasets for plotting.
-# This is what is shown in the GUI from the main file: dash_board.py. It encapsulates everything described in this file up until this point.
-# ------------------------------
-class PostGraphModule(QMainWindow):
-    def __init__(self, timestamper, session_manager):
-        super().__init__()
-        self.data_set = []
-        self.session_manager = session_manager
-        self.setWindowTitle("Module")
-        self.setGeometry(100, 100, 950, 600)
-        self.menubar = self.menuBar()
-        self.menubar.setStyleSheet(
-            "background-color: #333; color: white; font-size: 14px;"
-        )
-        self.menubar.setStyleSheet("QMenu::item:selected { background-color: #555; }")
-        self.menubar.setStyleSheet("QMenu::item:pressed { background-color: #777; }")
-
-        self.central_widget = QWidget()
-        self.setCentralWidget(self.central_widget)
-
-        self.layout = QHBoxLayout(self.central_widget)
-        self.layout.setContentsMargins(0, 0, 0, 0)
-        sideBoxLayout = QVBoxLayout()
-        graph_widget = QWidget()
-        self.plot_widget = MplCanvas()
-        self.plot_widget.fig.tight_layout()
-        self.plot_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-
-        #toolbar = NavigationToolbar(self.plot_widget, self)
-        plot_layout = QVBoxLayout(graph_widget)
-        #plot_layout.addWidget(toolbar)
-        plot_layout.addWidget(self.plot_widget)
-        plot_layout.setContentsMargins(0,0,0,0)
-        self.layout.addWidget(graph_widget)
-
-        self.timestamper = timestamper
-        self.setChooser = DatasetChooser(self.central_widget, self.plot_widget, self.timestamper, self.session_manager)
-        sidebox, sidebox1 = self.setChooser.get_scroll_areas()
-        self.data_set.append(self.setChooser)
-        sideBoxLayout.addLayout(sidebox)
-        sideBoxLayout.addLayout(sidebox1)
-
-        #self.add_dataset_button = QPushButton("Add Dataset", self.central_widget)
-        #self.add_dataset_button.clicked.connect(self.add_dataset)
-        self.reset_button = QPushButton("Reset")
-        self.reset_button.clicked.connect(self.reset)
-        self.footer = QStatusBar()
-        self.setStatusBar(self.footer)
-        self.footer.addWidget(self.reset_button)
-        #sideBoxLayout.addWidget(self.add_dataset_button)
-
-        collapsible_container = Collapsible()
-        collapsible_container.setContentLayout(sideBoxLayout)
-        self.layout.addWidget(collapsible_container)
-        # self.layout.addLayout(sideBoxLayout)
-
-        # self.plot_button.clicked.connect(self.plot_graph)
-        sideBoxLayout.addWidget(self.reset_button)
+            print("Error pausing graph: ", e)
 
     def reset(self):
+        """Resets the graph by pausing the animation, reloading data, and re-plotting"""
         self.pause_graph()
-        self.setChooser.set_active_data()
-        self.setChooser.plot_graph()
+        self.set_active_data()
+        self.plot_graph()
 
     def play(self):
-        self.setChooser.play_graph()
+        """Interface method to start playing the graph animation"""
+        self.play_graph()
 
     def pause(self):
-        self.setChooser.pause_graph()
+        """Interface method to pause the graph animation"""
+        self.pause_graph()
+
+    def clamp(value, min_value, max_value):
+        return max(min_value, min(value, max_value))
 
     def get_info(self):
-        """Getter that returns an array with the layouts of the sideboxes"""
-        info = []
-        for i in self.data_set:
-            info.append(i.get_info())
-        return info
+        return {
+            'type': "PostGraphModule",
+            'x_axis': self.x_combo.currentText(),
+            'y_axis': self.y_combo.currentData(),
+            'window_slider': self.window_slider.value(),
+            'slider': self.slider.value(),
+        }
 
-    def init_combobox(self, xSet, xSelect, ySelect):
-        """Sets the front-text comboboxes within the sidebar to the currently selected column within the active dataset"""
-        for dataset in self.data_set:
-            dataset.init_combobox(xSet, xSelect, ySelect)
+    def set_info(self, info):
+        if 'x_axis' in info:
+            index = self.x_combo.findText(info['x_axis'])
+            self.x_combo.setCurrentIndex(index)
 
-    def get_graph_type(self):
-        return "PostGraphModule"
+        if 'y_axis' in info:
+            self.y_combo.setCurrentItems(info['y_axis'])
+
+        if 'window_slider' in info:
+            self.window_slider.setValue(info['window_slider'])
+
+        if 'slider' in info:
+            self.slider.setValue(info['slider'])
+        
+        self.plot_graph()
+
+    

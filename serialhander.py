@@ -217,7 +217,7 @@ class SerialHandler(QObject):
         
             hertz_rolling_average = self.hertz_rate_sum / len(self.hertz_rates)
             return hertz_rolling_average
-        return None
+        return 0
 
     def stop_reading(self):
         print("Serial Reading is Stopping")

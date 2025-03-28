@@ -39,32 +39,6 @@ class CheckableComboBox(QComboBox):
         self.updateText()
         super().resizeEvent(event)
 
-    '''def eventFilter(self, object, event):
-
-        if object == self.lineEdit():
-            if event.type() == QEvent.MouseButtonRelease:
-                if self.closeOnLineEditClick:
-                    self.hidePopup()
-                else:
-                    self.showPopup()
-                return True
-            return False
-
-        if object == self.view().viewport():
-            if event.type() == QEvent.MouseButtonRelease:
-                index = self.view().indexAt(event.pos())
-                item = self.model().item(index.row())
-                try:
-                    if item.checkState() == Qt.Checked:
-                        item.setCheckState(Qt.Unchecked)
-                    else:
-                        item.setCheckState(Qt.Checked)
-                except:
-                    print("AttributeError: 'NoneType' object has no attribute 'checkState'")
-                return True
-        return False
-    '''
-
     def eventFilter(self, object, event):
         if object == self.view().viewport():
             if event.type() == QEvent.MouseButtonRelease:
@@ -84,9 +58,6 @@ class CheckableComboBox(QComboBox):
                     print(f"No valid index at position {event.pos()}")
                 return True
         return False
-
-
-
 
     def showPopup(self):
         super().showPopup()
@@ -136,15 +107,6 @@ class CheckableComboBox(QComboBox):
                 data = None
             self.addItem(text, data)
 
-    '''def currentData(self):
-        # Return the list of selected items data
-        res = []
-        for i in range(self.model().rowCount()):
-            if self.model().item(i).checkState() == Qt.Checked:
-                res.append(self.model().item(i).data())
-        return res
-    '''
-
     def currentData(self):
         # Return the list of selected items' data
         res = []
@@ -153,3 +115,12 @@ class CheckableComboBox(QComboBox):
             if item.checkState() == Qt.Checked:
                 res.append(item.data())
         return res
+
+    def setCurrentItems(self, items):
+        for i in range(self.model().rowCount()):
+            item = self.model().item(i)
+            if item.data() in items or item.text() in items:
+                item.setCheckState(Qt.Checked)
+            else:
+                item.setCheckState(Qt.Unchecked)
+        self.updateText()

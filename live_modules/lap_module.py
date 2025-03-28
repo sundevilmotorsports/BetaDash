@@ -109,6 +109,7 @@ class LapModule(QMainWindow):
                 Starting_Minute = lap_data["Starting Minute"][-1],
                 Starting_Second = lap_data["Starting Second"][-1],
                 Starting_Millis = lap_data["Starting Millis"][-1],
+                Converted_Starting_Time=lap_data["Starting Year"][-1] * 12960000000 + lap_data["Starting Day"][-1] * 216000000 + lap_data["Starting Hour"][-1] * 3600000 + lap_data["Starting Minute"][-1] * 60000 + lap_data["Starting Second"][-1] * 1000 + lap_data["Starting Millis"][-1],
                 Now_Millis = lap_data["Now Millis"][-1],
                 Now_Millis_Minus_Starting_Millis = lap_data["Now Millis Minus Starting Millis"][-1],
                 Prev_Now_Millis = 0,
@@ -133,31 +134,42 @@ class LapModule(QMainWindow):
 
         self.update_lists()
 
-
     def update_lists(self):
         items = [self.lap_timers_list.item(x).text() for x in range(self.lap_timers_list.count())]
+        time_diffs = [self.lap_first_gate_diff_list.item(x).text() for x in range(self.lap_first_gate_diff_list.count())]
+        sector_times = [self.lap_relative_data_list.item(x).text() for x in range(self.lap_relative_data_list.count())]
         self.lap_global_data_list.clear()
         self.lap_first_gate_diff_list.clear()
         self.lap_relative_data_list.clear()
 
         first_gate_number = int(items[0].split(":")[-1].strip()) if items else None
         last_gate_number = int(items[len(items)-1].split(":")[-1].strip())
-        
+        first_starting_time = self.lap_timers[first_gate_number].Converted_Starting_Time
+    
         for index, item in enumerate(items):
             gate_number = int(item.split(":")[-1].strip())
             if gate_number in self.lap_timers:
-                val = str(round(self.lap_timers[gate_number].Now_Millis / 1000, 3))
+                diff = first_starting_time - self.lap_timers[gate_number].Converted_Starting_Time
+                # print("diff: ", diff)
+                now_millis = (self.lap_timers[gate_number].Now_Millis - diff)
+                # print("now millis minus diff: ", self.lap_timers[gate_number].Converted_Starting_Time + self.lap_timers[gate_number].Now_Millis - diff)
+                first_now_millis = (self.lap_timers[first_gate_number].Now_Millis)
+
+                val = str(round((now_millis / 1000), 3))
                 self.lap_global_data_list.addItem(val)
 
-                first_gate_diff = round((self.lap_timers[gate_number].Now_Millis - self.lap_timers[first_gate_number].Now_Millis) / 1000, 3) if first_gate_number else 0
+                first_gate_diff = round((now_millis - first_now_millis) / 1000, 3)
                 self.lap_first_gate_diff_list.addItem(str(first_gate_diff))
 
                 if index == 0:
-                    self.lap_relative_data_list.addItem("-")
-                    # self.lap_time_label.setText("Lap Time: 0.000")
-                    lap_time = round((self.lap_timers[first_gate_number].Now_Millis - self.lap_timers[first_gate_number].Prev_Now_Millis)/1000, 3) 
+                    length = len(self.lap_timers_list)
+                    if length > 1:
+                            shotgun_diff = first_starting_time - self.lap_timers[last_gate_number].Converted_Starting_Time
+                            final_sector_val = f"S{length}: " + str(round((now_millis - (self.lap_timers[last_gate_number].Now_Millis - shotgun_diff)) / 1000, 3))
+                            
+                    # self.lap_relative_data_list.addItem("-")
+                    lap_time = round((first_now_millis - (self.lap_timers[first_gate_number].Prev_Now_Millis)) / 1000, 3) 
                     if(lap_time != 0):
-                        # past_lap_time = float(self.lap_time_label.text().split(":")[-1].strip())
                         if lap_time != self.past_lap_time:
                             self.past_lap_time = lap_time
                             self.lap_time_label.setText(f"Lap Time: {lap_time}")
@@ -168,12 +180,16 @@ class LapModule(QMainWindow):
                 else:
                     prev_gate_number = int(items[index - 1].split(":")[-1].strip())
                     if prev_gate_number in self.lap_timers:
-                        val = str(round((self.lap_timers[gate_number].Now_Millis - self.lap_timers[prev_gate_number].Now_Millis) / 1000, 3))
-                        self.lap_relative_data_list.addItem(val)
-                        # lap_time = round((self.lap_timers[gate_number].Now_Millis - self.lap_timers[first_gate_number].Now_Millis) / 1000, 3)
-                        # self.lap_time_label.setText(f"Lap Time: {lap_time}")
+                        shotgun_diff = first_starting_time - self.lap_timers[prev_gate_number].Converted_Starting_Time
+                        if index - 1 == 0:
+                            val = f"S{index}: " + str(round((now_millis - (self.lap_timers[prev_gate_number].Now_Millis)) / 1000, 3))
+                        else:
+                            val = f"S{index}: " + str(round((now_millis - (self.lap_timers[prev_gate_number].Now_Millis - shotgun_diff)) / 1000, 3))
                         
-
+                        self.lap_relative_data_list.addItem(val)
+                        if final_sector_val:
+                            self.lap_relative_data_list.addItem(final_sector_val)
+                        
     def zero_out_values(self):
         for gate_number in self.lap_timers:
             self.lap_timers[gate_number].Now_Millis = 0
@@ -200,3 +216,58 @@ class LapModule(QMainWindow):
         else:
             self.logging_laps_bool = True
             self.log_laps_button.setText("Stop Logging Laps")
+
+    def get_info(self):
+        return {
+            'type': "LapModule",
+            'lap_timers': {
+                key: {
+                'Gate_Number': item.Gate_Number,
+                'Starting_Year': item.Starting_Year,
+                'Starting_Month': item.Starting_Month,
+                'Starting_Day': item.Starting_Day,
+                'Starting_Hour': item.Starting_Hour,
+                'Starting_Minute': item.Starting_Minute,
+                'Starting_Second': item.Starting_Second,
+                'Starting_Millis': item.Starting_Millis,
+                'Converted_Starting_Time': item.Converted_Starting_Time,
+                'Now_Millis': item.Now_Millis,
+                'Now_Millis_Minus_Starting_Millis': item.Now_Millis_Minus_Starting_Millis,
+                'Prev_Now_Millis': item.Prev_Now_Millis,
+                'Prev_Now_Millis_Minus_Starting_Millis': item.Prev_Now_Millis_Minus_Starting_Millis,
+                }
+                for key, item in self.lap_timers.items()
+            },
+            'lap_timers_list': [self.lap_timers_list.item(i).text() for i in range(self.lap_timers_list.count())],
+            'logging_laps': self.logging_laps_bool,
+        }
+
+    def set_info(self, info):
+        if 'lap_timers' in info:
+            self.lap_timers_list.clear()
+            for key, item in info['lap_timers'].items():
+                self.lap_timers[key] = LapTimer(
+                    Gate_Number=item["Gate_Number"],
+                    Starting_Year=item["Starting_Year"],
+                    Starting_Month=item["Starting_Month"],
+                    Starting_Day=item["Starting_Day"],
+                    Starting_Hour=item["Starting_Hour"],
+                    Starting_Minute=item["Starting_Minute"],
+                    Starting_Second=item["Starting_Second"],
+                    Starting_Millis=item["Starting_Millis"],
+                    Converted_Starting_Time=item["Converted_Starting_Time"],
+                    Now_Millis=item["Now_Millis"],
+                    Now_Millis_Minus_Starting_Millis=item["Now_Millis_Minus_Starting_Millis"],
+                    Prev_Now_Millis=item["Prev_Now_Millis"],
+                    Prev_Now_Millis_Minus_Starting_Millis=item["Prev_Now_Millis_Minus_Starting_Millis"]
+                )
+        if 'lap_timers_list' in info:
+            self.lap_timers_list.clear()
+            for gate_text in info['lap_timers_list']:
+                self.lap_timers_list.addItem(gate_text)
+                
+        if 'logging_laps' in info:
+            self.logging_laps_bool = info['logging_laps']
+
+        self.update_lists()
+
