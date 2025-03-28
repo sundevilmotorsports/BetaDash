@@ -103,6 +103,7 @@ class LapTimer:
     Now_Millis_Minus_Starting_Millis : int
     Prev_Now_Millis : int
     Prev_Now_Millis_Minus_Starting_Millis : int
+    Starting_Delta : int
 
 
 @dataclass

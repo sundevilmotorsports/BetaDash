@@ -5,6 +5,7 @@ from PyQt5.QtWidgets import *
 from utils import LapTimer
 
 
+
 class CustomDropList(QListWidget):
     def __init__(self):
         super(CustomDropList, self).__init__()
@@ -111,14 +112,24 @@ class LapModule(QMainWindow):
                 Now_Millis = lap_data["Now Millis"][-1],
                 Now_Millis_Minus_Starting_Millis = lap_data["Now Millis Minus Starting Millis"][-1],
                 Prev_Now_Millis = 0,
-                Prev_Now_Millis_Minus_Starting_Millis=0
+                Prev_Now_Millis_Minus_Starting_Millis = 0,
+                Starting_Delta = lap_data["Starting Year"][-1] * 31557600000 + lap_data["Starting Month"][-1] * 2629800000 + lap_data["Starting Day"][-1] * 86400000 + lap_data["Starting Hour"][-1] * 3600000 + lap_data["Starting Minute"][-1] * 60000 + lap_data["Starting Second"][-1] * 1000 + lap_data["Starting Millis"][-1]
             )
             self.lap_timers_list.addItem("Gate Number: " + str(int(lap_data['Gate Number'][-1])))
         else:
             self.lap_timers[lap_data["Gate Number"][-1]].Prev_Now_Millis = self.lap_timers[lap_data["Gate Number"][-1]].Now_Millis
             self.lap_timers[lap_data["Gate Number"][-1]].Prev_Now_Millis_Minus_Starting_Millis = self.lap_timers[lap_data["Gate Number"][-1]].Now_Millis_Minus_Starting_Millis
-            self.lap_timers[lap_data["Gate Number"][-1]].Now_Millis = lap_data["Now Millis"][-1]
+            self.lap_timers[lap_data["Gate Number"][-1]].Now_Millis = lap_data["Now Millis"][-1] + self.lap_timers[lap_data["Gate Number"][-1]].Starting_Delta
             self.lap_timers[lap_data["Gate Number"][-1]].Now_Millis_Minus_Starting_Millis = lap_data["Now Millis Minus Starting Millis"][-1]
+            self.lap_timers[lap_data["Gate Number"][-1]].Gate_Number = lap_data["Gate Number"][-1]
+            self.lap_timers[lap_data["Gate Number"][-1]].Starting_Year = lap_data["Starting Year"][-1]
+            self.lap_timers[lap_data["Gate Number"][-1]].Starting_Month = lap_data["Starting Month"][-1]
+            self.lap_timers[lap_data["Gate Number"][-1]].Starting_Day = lap_data["Starting Day"][-1]
+            self.lap_timers[lap_data["Gate Number"][-1]].Starting_Hour = lap_data["Starting Hour"][-1]
+            self.lap_timers[lap_data["Gate Number"][-1]].Starting_Minute = lap_data["Starting Minute"][-1]
+            self.lap_timers[lap_data["Gate Number"][-1]].Starting_Second = lap_data["Starting Second"][-1]
+            self.lap_timers[lap_data["Gate Number"][-1]].Starting_Millis = lap_data["Starting Millis"][-1]
+            self.lap_timers[lap_data["Gate Number"][-1]].Starting_Delta = lap_data["Starting Year"][-1] * 31557600000 + lap_data["Starting Month"][-1] * 2629800000 + lap_data["Starting Day"][-1] * 86400000 + lap_data["Starting Hour"][-1] * 3600000 + lap_data["Starting Minute"][-1] * 60000 + lap_data["Starting Second"][-1] * 1000 + lap_data["Starting Millis"][-1]
 
         self.update_lists()
 
