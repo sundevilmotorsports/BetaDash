@@ -221,11 +221,15 @@ class GraphModule(QMainWindow):
             x_values = np.asarray(new_data[x_column]).flatten()
             x_values = x_values[-queue_size:]
 
+            for index, x in enumerate(x_values):
+                if(x == 0):
+                    print("Zero x NOT ALLOWED BOZO")
+                    np.delete(x_values, index)
+
             for plot_item in self.plot_items.values():
                 if not isinstance(plot_item.y_column, list): # if y_column is a list in the plot item object then its a math channel
                     y_values = np.asarray(new_data[plot_item.y_column]).flatten()
                     y_values = y_values[-queue_size:]
-
                     plot_item.data_item.setData(x=x_values, y=y_values)
                 else:
                     func = plot_item.math_ch

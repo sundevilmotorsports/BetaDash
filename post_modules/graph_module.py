@@ -13,7 +13,7 @@ from collapsible_module import Collapsible
 from checkable_combo import CheckableComboBox
 from post_modules.session import Session, SessionManager
 from post_modules.timestamper import TimeStamper
-import mpl_interactions.ipyplot as iplt
+#import mpl_interactions.ipyplot as iplt
 
 # Set the Matplotlib backend to Qt5Agg for PyQt5
 matplotlib.use("Qt5Agg")
