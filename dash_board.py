@@ -31,6 +31,7 @@ from post_modules.graph_module import PostGraphModule
 from post_modules.video_module import PostVideoPlayer
 from post_modules.timestamper import TimeStamper
 from post_modules.lap_module import PostLapModule
+from post_modules.suspension import SuspensionSuite
 from post_modules.session import Session, SessionManager
 # Styling Imports
 import qdarkstyle
@@ -413,6 +414,10 @@ class Dashboard(QMainWindow):
         self.post_lap_button.setMaximumWidth(200)
         self.post_lap_button.clicked.connect(lambda: self.create_module("PostLapModule"))
 
+        self.suspension_button = QPushButton("Add Suspension Suite")
+        self.suspension_button.setMaximumWidth(200)
+        self.suspension_button.clicked.connect(lambda: self.create_module("SuspensionSuite"))
+
         self.add_csv_button = QPushButton("Add CSV File")
         self.add_csv_button.setMaximumWidth(200)
         self.add_csv_button.clicked.connect(self.introduce_csv_importer)
@@ -441,6 +446,7 @@ class Dashboard(QMainWindow):
         self.toolbar.addWidget(self.post_camera_module_button)
         self.toolbar.addWidget(self.post_graph_module_button)
         self.toolbar.addWidget(self.post_lap_button)
+        self.toolbar.addWidget(self.suspension_button)
         self.toolbar.addWidget(self.add_csv_button)
         self.toolbar.addWidget(self.save_dashboard_button)
         self.toolbar.addWidget(self.load_dashboard_button)
@@ -491,6 +497,8 @@ class Dashboard(QMainWindow):
                 self.post_modules.append(new_module)
             case "PostLapModule":
                 new_module = PostLapModule(self.session_manager)
+            case "SuspensionSuite":
+                new_module = SuspensionSuite(self.session_manager)
             case _:
                 print("Module Type is Unknown:", module_type)
                 return

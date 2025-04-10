@@ -4,8 +4,6 @@ from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 from utils import LapTimer
 
-
-
 class CustomDropList(QListWidget):
     def __init__(self):
         super(CustomDropList, self).__init__()
@@ -20,21 +18,30 @@ class LapModule(QMainWindow):
     def __init__(self, serialhandler):
         super().__init__()
         self.setWindowTitle("Lap Module")
-        self.setGeometry(100, 100, 650, 400)
+        self.setGeometry(100, 100, 650, 500)
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
 
         self.main_layout = QVBoxLayout(self.central_widget)
 
-        self.layout = QHBoxLayout()
-        self.layout.setContentsMargins(0, 0, 0, 0)
+        self.top_layout = QHBoxLayout()
+        self.top_layout.setContentsMargins(0, 0, 0, 0)
 
-        self.main_layout.addLayout(self.layout)
+        self.bottom_layout = QHBoxLayout()
+        self.bottom_layout.setContentsMargins(0, 0, 0, 0)
+        self.bottom_layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+
+        self.main_layout.addLayout(self.top_layout)
+        self.main_layout.addLayout(self.bottom_layout)
 
         self.left = QVBoxLayout()
         self.middle = QVBoxLayout()
         self.right = QVBoxLayout()
         self.extra_right = QVBoxLayout()
+
+        self.bottom_left = QVBoxLayout()
+        self.bottom_right = QVBoxLayout()
+        self.bottom_right.setAlignment(Qt.AlignBottom)
 
         self.left.addWidget(QLabel("Lap Timers on Track: "))
         self.middle.addWidget(QLabel("Recent Timestamp: "))
@@ -60,29 +67,37 @@ class LapModule(QMainWindow):
         self.lap_relative_data_list = QListWidget()
         self.extra_right.addWidget(self.lap_relative_data_list)
 
-        self.lap_time_label = QLabel("Lap Time: 0.000")
-        self.main_layout.addWidget(self.lap_time_label)
+        self.lap_time_list = QListWidget()
+        self.lap_time_list.setMaximumWidth(200)
+        font = QFont()
+        font.setPointSize(16)
+        self.lap_time_list.setFont(font)
+        self.bottom_left.addWidget(QLabel("Lap Times: "))
+        self.bottom_left.addWidget(self.lap_time_list)
 
         self.zero_button = QPushButton("Zero Out Values")
         self.zero_button.setMaximumWidth(200)
         self.zero_button.clicked.connect(self.zero_out_values)
-        self.main_layout.addWidget(self.zero_button)
+        self.bottom_right.addWidget(self.zero_button)
 
         self.delete_button = QPushButton("Delete Selected Gate")
         self.delete_button.setMaximumWidth(200)
         self.delete_button.clicked.connect(self.delete_selected_gate)
-        self.main_layout.addWidget(self.delete_button)
+        self.bottom_right.addWidget(self.delete_button)
 
         self.log_laps_button = QPushButton("Start Logging Laps")
         self.log_laps_button.setMaximumWidth(200)
         self.logging_laps_bool : bool = False
         self.log_laps_button.clicked.connect(self.handle_logging_laps)
-        self.main_layout.addWidget(self.log_laps_button)
+        self.bottom_right.addWidget(self.log_laps_button)
 
-        self.layout.addLayout(self.left)
-        self.layout.addLayout(self.middle)
-        self.layout.addLayout(self.right)
-        self.layout.addLayout(self.extra_right)
+        self.top_layout.addLayout(self.left)
+        self.top_layout.addLayout(self.middle)
+        self.top_layout.addLayout(self.right)
+        self.top_layout.addLayout(self.extra_right)
+
+        self.bottom_layout.addLayout(self.bottom_left)
+        self.bottom_layout.addLayout(self.bottom_right)
 
         self.serialhandler = serialhandler
         self.serialhandler.timing_data_changed.connect(self.update)
@@ -96,6 +111,7 @@ class LapModule(QMainWindow):
         self.starting_millis = None
 
         self.past_lap_time = 0
+        self.lap_counter = 0
 
     @pyqtSlot(dict)
     def update(self, lap_data):
@@ -109,19 +125,12 @@ class LapModule(QMainWindow):
                 Starting_Minute = lap_data["Starting Minute"][-1],
                 Starting_Second = lap_data["Starting Second"][-1],
                 Starting_Millis = lap_data["Starting Millis"][-1],
-                Converted_Starting_Time=lap_data["Starting Year"][-1] * 12960000000 + lap_data["Starting Day"][-1] * 216000000 + lap_data["Starting Hour"][-1] * 3600000 + lap_data["Starting Minute"][-1] * 60000 + lap_data["Starting Second"][-1] * 1000 + lap_data["Starting Millis"][-1],
+                Starting_Delta = lap_data["Starting Year"][-1] * 31557600000 + lap_data["Starting Month"][-1] * 2629800000 + lap_data["Starting Day"][-1] * 86400000 + lap_data["Starting Hour"][-1] * 3600000 + lap_data["Starting Minute"][-1] * 60000 + lap_data["Starting Second"][-1] * 1000 + lap_data["Starting Millis"][-1],
                 Now_Millis = lap_data["Now Millis"][-1],
-                Now_Millis_Minus_Starting_Millis = lap_data["Now Millis Minus Starting Millis"][-1],
                 Prev_Now_Millis = 0,
-                Prev_Now_Millis_Minus_Starting_Millis = 0,
-                Starting_Delta = lap_data["Starting Year"][-1] * 31557600000 + lap_data["Starting Month"][-1] * 2629800000 + lap_data["Starting Day"][-1] * 86400000 + lap_data["Starting Hour"][-1] * 3600000 + lap_data["Starting Minute"][-1] * 60000 + lap_data["Starting Second"][-1] * 1000 + lap_data["Starting Millis"][-1]
             )
             self.lap_timers_list.addItem("Gate Number: " + str(int(lap_data['Gate Number'][-1])))
         else:
-            self.lap_timers[lap_data["Gate Number"][-1]].Prev_Now_Millis = self.lap_timers[lap_data["Gate Number"][-1]].Now_Millis
-            self.lap_timers[lap_data["Gate Number"][-1]].Prev_Now_Millis_Minus_Starting_Millis = self.lap_timers[lap_data["Gate Number"][-1]].Now_Millis_Minus_Starting_Millis
-            self.lap_timers[lap_data["Gate Number"][-1]].Now_Millis = lap_data["Now Millis"][-1] + self.lap_timers[lap_data["Gate Number"][-1]].Starting_Delta
-            self.lap_timers[lap_data["Gate Number"][-1]].Now_Millis_Minus_Starting_Millis = lap_data["Now Millis Minus Starting Millis"][-1]
             self.lap_timers[lap_data["Gate Number"][-1]].Gate_Number = lap_data["Gate Number"][-1]
             self.lap_timers[lap_data["Gate Number"][-1]].Starting_Year = lap_data["Starting Year"][-1]
             self.lap_timers[lap_data["Gate Number"][-1]].Starting_Month = lap_data["Starting Month"][-1]
@@ -131,6 +140,8 @@ class LapModule(QMainWindow):
             self.lap_timers[lap_data["Gate Number"][-1]].Starting_Second = lap_data["Starting Second"][-1]
             self.lap_timers[lap_data["Gate Number"][-1]].Starting_Millis = lap_data["Starting Millis"][-1]
             self.lap_timers[lap_data["Gate Number"][-1]].Starting_Delta = lap_data["Starting Year"][-1] * 31557600000 + lap_data["Starting Month"][-1] * 2629800000 + lap_data["Starting Day"][-1] * 86400000 + lap_data["Starting Hour"][-1] * 3600000 + lap_data["Starting Minute"][-1] * 60000 + lap_data["Starting Second"][-1] * 1000 + lap_data["Starting Millis"][-1]
+            self.lap_timers[lap_data["Gate Number"][-1]].Now_Millis = lap_data["Now Millis"][-1] + self.lap_timers[lap_data["Gate Number"][-1]].Starting_Delta
+            self.lap_timers[lap_data["Gate Number"][-1]].Prev_Now_Millis = self.lap_timers[lap_data["Gate Number"][-1]].Now_Millis
 
         self.update_lists()
 
@@ -144,12 +155,12 @@ class LapModule(QMainWindow):
 
         first_gate_number = int(items[0].split(":")[-1].strip()) if items else None
         last_gate_number = int(items[len(items)-1].split(":")[-1].strip())
-        first_starting_time = self.lap_timers[first_gate_number].Converted_Starting_Time
+        first_starting_time = self.lap_timers[first_gate_number].Starting_Delta
     
         for index, item in enumerate(items):
             gate_number = int(item.split(":")[-1].strip())
             if gate_number in self.lap_timers:
-                diff = first_starting_time - self.lap_timers[gate_number].Converted_Starting_Time
+                diff = first_starting_time - self.lap_timers[gate_number].Starting_Delta
                 # print("diff: ", diff)
                 now_millis = (self.lap_timers[gate_number].Now_Millis - diff)
                 # print("now millis minus diff: ", self.lap_timers[gate_number].Converted_Starting_Time + self.lap_timers[gate_number].Now_Millis - diff)
@@ -164,7 +175,7 @@ class LapModule(QMainWindow):
                 if index == 0:
                     length = len(self.lap_timers_list)
                     if length > 1:
-                            shotgun_diff = first_starting_time - self.lap_timers[last_gate_number].Converted_Starting_Time
+                            shotgun_diff = first_starting_time - self.lap_timers[last_gate_number].Starting_Delta
                             final_sector_val = f"S{length}: " + str(round((now_millis - (self.lap_timers[last_gate_number].Now_Millis - shotgun_diff)) / 1000, 3))
                             
                     # self.lap_relative_data_list.addItem("-")
@@ -172,7 +183,9 @@ class LapModule(QMainWindow):
                     if(lap_time != 0):
                         if lap_time != self.past_lap_time:
                             self.past_lap_time = lap_time
-                            self.lap_time_label.setText(f"Lap Time: {lap_time}")
+                            self.lap_time_list.insertItem(0, str(lap_time))
+                            if self.lap_timers_list.count() > 5:
+                                self.list_widget.takeItem(self.list_widget.count() - 1)
                             if self.logging_laps_bool:
                                     self.serialhandler.increment_lap_counter()
                         else:
@@ -180,7 +193,7 @@ class LapModule(QMainWindow):
                 else:
                     prev_gate_number = int(items[index - 1].split(":")[-1].strip())
                     if prev_gate_number in self.lap_timers:
-                        shotgun_diff = first_starting_time - self.lap_timers[prev_gate_number].Converted_Starting_Time
+                        shotgun_diff = first_starting_time - self.lap_timers[prev_gate_number].Starting_Delta
                         if index - 1 == 0:
                             val = f"S{index}: " + str(round((now_millis - (self.lap_timers[prev_gate_number].Now_Millis)) / 1000, 3))
                         else:
@@ -230,7 +243,7 @@ class LapModule(QMainWindow):
                 'Starting_Minute': item.Starting_Minute,
                 'Starting_Second': item.Starting_Second,
                 'Starting_Millis': item.Starting_Millis,
-                'Converted_Starting_Time': item.Converted_Starting_Time,
+                'Starting_Delta': item.Starting_Delta,
                 'Now_Millis': item.Now_Millis,
                 'Now_Millis_Minus_Starting_Millis': item.Now_Millis_Minus_Starting_Millis,
                 'Prev_Now_Millis': item.Prev_Now_Millis,
@@ -255,7 +268,7 @@ class LapModule(QMainWindow):
                     Starting_Minute=item["Starting_Minute"],
                     Starting_Second=item["Starting_Second"],
                     Starting_Millis=item["Starting_Millis"],
-                    Converted_Starting_Time=item["Converted_Starting_Time"],
+                    Starting_Delta=item["Starting_Delta"],
                     Now_Millis=item["Now_Millis"],
                     Now_Millis_Minus_Starting_Millis=item["Now_Millis_Minus_Starting_Millis"],
                     Prev_Now_Millis=item["Prev_Now_Millis"],

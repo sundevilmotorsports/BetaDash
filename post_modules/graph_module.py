@@ -173,9 +173,10 @@ class PostGraphModule(QMainWindow):
             self.timestamper.set_max_time(self.active_dataX[self.x_combo.currentText()].iloc[-1])
             x_values = self.active_dataX[self.selected_x].values
             self.slider.setMinimum(int(x_values.min()))
-            self.slider.setMaximum(int(x_values.max() - self.window_slider.value() / 2))
+            self.slider.setMaximum(int(x_values.count() - self.window_slider.value() / 2))
+            self.slider.setValue(int(self.slider.maximum() / 2))
             self.window_slider.setMinimum(1)
-            self.window_slider.setMaximum(min(1000, int(x_values.max())))
+            self.window_slider.setMaximum(int(x_values.count()))
             self.plot_graph()
         except Exception as e:
             print("Error in set_active_data: ", e)
@@ -200,10 +201,16 @@ class PostGraphModule(QMainWindow):
             self.selected_y_columns = self.y_combo.currentData()
 
             y_data = self.active_dataX[self.selected_y_columns]
+            x_data = self.active_dataX[self.selected_x]
+
+            self.slider.setMinimum(int(x_data.min()))
+            self.slider.setMaximum(int(x_data.max() - self.window_slider.value() / 2))
+            self.slider.setValue(int(self.slider.maximum() / 2))
+            self.window_slider.setMaximum(int(x_data.count()))
 
             self.ax1.clear()
             for col in self.selected_y_columns:
-                self.ax1.plot(self.active_dataX[self.selected_x], self.active_dataX[col], label=col)
+                self.ax1.plot(x_data, self.active_dataX[col], label=col)
             self.ax1.set_xlabel(self.selected_x)
             self.ax1.set_ylabel(", ".join(self.selected_y_columns))
             self.ax1.set_title(self.selected_x + " vs " + ", ".join(self.selected_y_columns))
