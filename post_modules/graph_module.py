@@ -195,28 +195,57 @@ class PostGraphModule(QMainWindow):
         self.slider_label.setText(str(slider_val))
 
     def plot_graph(self):
-        """Clears and redraws the graph using the selected x and y columns"""
         try:
             self.selected_x = self.x_combo.currentText()
             self.selected_y_columns = self.y_combo.currentData()
 
-            y_data = self.active_dataX[self.selected_y_columns]
-            x_data = self.active_dataX[self.selected_x]
+            self.selected_x = self.x_combo.currentText()
+            self.selected_y_columns = self.y_combo.currentData()
 
-            self.slider.setMinimum(int(x_data.min()))
-            self.slider.setMaximum(int(x_data.max() - self.window_slider.value() / 2))
-            self.slider.setValue(int(self.slider.maximum() / 2))
-            self.window_slider.setMaximum(int(x_data.count()))
+            all_selected = [self.selected_x] + list(self.selected_y_columns)
+            has_gps_any = any('gps' in col.lower() for col in all_selected)
+
+            self.slider.setEnabled(not has_gps_any)
+            self.window_slider.setEnabled(not has_gps_any)
+
+            df = self.active_dataX
+            x_data_full = df[self.selected_x]
+        
+            if not has_gps_any:
+                xmin = int(x_data_full.min())
+                xmax = int(x_data_full.max() - self.window_slider.value() / 2)
+                self.slider.setMinimum(xmin)
+                self.slider.setMaximum(xmax)
+                self.slider.setValue((xmin + xmax) // 2)
+                # self.window_slider.setMaximum(int(x_data_full.count()))
 
             self.ax1.clear()
             for col in self.selected_y_columns:
-                self.ax1.plot(x_data, self.active_dataX[col], label=col)
+                y_data_full = df[col]
+                # remove points where x==0 AND y==0
+                # remove points where |x|>1e7 or |y|>1e7 unless col is GPS
+                is_gps = 'gps' in col.lower()
+                mask = ~((x_data_full == 0) & (y_data_full == 0))
+                if not is_gps:
+                    mask &= (x_data_full.abs() <= 1e7) & (y_data_full.abs() <= 1e7)
+
+                x_plot = x_data_full[mask]
+                y_plot = y_data_full[mask]
+
+                self.ax1.plot(x_plot, y_plot, label=col)
+
             self.ax1.set_xlabel(self.selected_x)
             self.ax1.set_ylabel(", ".join(self.selected_y_columns))
-            self.ax1.set_title(self.selected_x + " vs " + ", ".join(self.selected_y_columns))
-            self.ax1.grid()
-            if not y_data.empty:
+            self.ax1.set_title(f"{self.selected_x} vs {', '.join(self.selected_y_columns)}")
+            self.ax1.grid(True)
+
+            if any(not df[col].empty for col in self.selected_y_columns):
                 self.ax1.legend(loc='lower left')
+
+            xmin, xmax = self.ax1.get_xlim()
+            x_range = int(round(xmax - xmin))
+            self.window_slider.setMaximum(x_range)
+
             self.canvas.draw()
         except Exception as e:
             print("Error plotting graph: ", e)

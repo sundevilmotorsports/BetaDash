@@ -139,10 +139,6 @@ class Dashboard(QMainWindow):
 
         self.post_modules = []
 
-        # SQL DEPRECATION
-        # self.connection = None
-        # self.db_name = None
-
     def slider_moved(self, position):
         print(position)
         self.timestamper.time_stamp = position * (self.timestamper.max_time / 100)
@@ -214,6 +210,8 @@ class Dashboard(QMainWindow):
             widget = LapModule(self.serialmonitor)
         elif module_info.moduleType == 'PostGraphModule':
             widget = PostGraphModule(self.timestamper, self.session_manager)
+        elif module_info.moduleType == 'SuspensionSuite':
+            widget = SuspensionSuite(self.session_manager)
         else:
             return 
 
@@ -619,6 +617,7 @@ class Dashboard(QMainWindow):
             print("lmao lil bro: ", e)
 
         ##### for recording
+
     def toggle_recording(self):
         if not self.recording:
             self.recording = True
@@ -652,7 +651,6 @@ class Dashboard(QMainWindow):
         self.record_button.setEnabled(True)
         self.record_button.setText("Start Recording")
     #####
-
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
