@@ -105,3 +105,13 @@ class rgModule(QMainWindow):
     def closeEvent(self, event):
         self.worker.stop()
         event.accept()
+
+    def set_info(self, info):
+        if 'queue' in info:
+            self.queue_size_slider.setValue(info['queue'])
+
+    def get_info(self):
+        return {
+            'type': 'rgModule',
+            'queue': self.queue_size_slider.value(),
+        }

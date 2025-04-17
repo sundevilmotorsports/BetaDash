@@ -31,6 +31,7 @@ from post_modules.graph_module import PostGraphModule
 from post_modules.video_module import PostVideoPlayer
 from post_modules.timestamper import TimeStamper
 from post_modules.lap_module import PostLapModule
+from post_modules.suspension import SuspensionSuite
 from post_modules.session import Session, SessionManager
 # Styling Imports
 import qdarkstyle
@@ -138,10 +139,6 @@ class Dashboard(QMainWindow):
 
         self.post_modules = []
 
-        # SQL DEPRECATION
-        # self.connection = None
-        # self.db_name = None
-
     def slider_moved(self, position):
         print(position)
         self.timestamper.time_stamp = position * (self.timestamper.max_time / 100)
@@ -205,6 +202,16 @@ class Dashboard(QMainWindow):
             widget = ReportModule(self.serialmonitor)
         elif module_info.moduleType == 'LabelModule':
             widget = LabelModule(self.serialmonitor, module_info.info.get('data_type', "Timestamp (ms)"))
+        elif module_info.moduleType == "ggModule":
+            widget = ggModule(self.serialmonitor)
+        elif module_info.moduleType == 'rgModule':
+            widget = rgModule(self.serialmonitor)
+        elif module_info.moduleType == 'LapModule':
+            widget = LapModule(self.serialmonitor)
+        elif module_info.moduleType == 'PostGraphModule':
+            widget = PostGraphModule(self.timestamper, self.session_manager)
+        elif module_info.moduleType == 'SuspensionSuite':
+            widget = SuspensionSuite(self.session_manager)
         else:
             return 
 
@@ -336,6 +343,13 @@ class Dashboard(QMainWindow):
         self.lap_module_button.setMaximumWidth(200)
         self.lap_module_button.clicked.connect(lambda: self.create_module("LapModule"))
 
+        ### for recording
+        self.recording = False
+        self.record_button = QPushButton("Start Recording")
+        self.record_button.setMaximumWidth(200)
+        self.record_button.clicked.connect(self.toggle_recording)
+        ###
+
         # self.radio_button = QRadioButton("USE SQL")
         # self.radio_button.setChecked(False)
         # self.radio_button.clicked.connect(self.create_sql)
@@ -375,6 +389,7 @@ class Dashboard(QMainWindow):
         self.toolbar.addWidget(self.report_module_button)
         self.toolbar.addWidget(self.wheelviz_button)
         self.toolbar.addWidget(self.lap_module_button)
+        self.toolbar.addWidget(self.record_button)
         # self.toolbar.addWidget(self.radio_button)
         # self.toolbar.addWidget(self.write_sql_button)
         self.toolbar.addWidget(self.save_dashboard_button)
@@ -396,6 +411,10 @@ class Dashboard(QMainWindow):
         self.post_lap_button = QPushButton("Add Post Lap Module")
         self.post_lap_button.setMaximumWidth(200)
         self.post_lap_button.clicked.connect(lambda: self.create_module("PostLapModule"))
+
+        self.suspension_button = QPushButton("Add Suspension Suite")
+        self.suspension_button.setMaximumWidth(200)
+        self.suspension_button.clicked.connect(lambda: self.create_module("SuspensionSuite"))
 
         self.add_csv_button = QPushButton("Add CSV File")
         self.add_csv_button.setMaximumWidth(200)
@@ -425,6 +444,7 @@ class Dashboard(QMainWindow):
         self.toolbar.addWidget(self.post_camera_module_button)
         self.toolbar.addWidget(self.post_graph_module_button)
         self.toolbar.addWidget(self.post_lap_button)
+        self.toolbar.addWidget(self.suspension_button)
         self.toolbar.addWidget(self.add_csv_button)
         self.toolbar.addWidget(self.save_dashboard_button)
         self.toolbar.addWidget(self.load_dashboard_button)
@@ -475,6 +495,8 @@ class Dashboard(QMainWindow):
                 self.post_modules.append(new_module)
             case "PostLapModule":
                 new_module = PostLapModule(self.session_manager)
+            case "SuspensionSuite":
+                new_module = SuspensionSuite(self.session_manager)
             case _:
                 print("Module Type is Unknown:", module_type)
                 return
@@ -491,7 +513,6 @@ class Dashboard(QMainWindow):
             return
         importer = CSVImport(filename[0], self.session_manager)
         importer.exec()
-        self.select_session_button.clear()
         self.active_data = self.session_manager.get_active_sessions()[0].data
 
     def create_sql(self):
@@ -594,6 +615,42 @@ class Dashboard(QMainWindow):
             self.tab_widget.currentChanged.connect(self.on_tab_changed)
         except Exception as e:
             print("lmao lil bro: ", e)
+
+        ##### for recording
+
+    def toggle_recording(self):
+        if not self.recording:
+            self.recording = True
+            self.serialmonitor.clear_data()
+            self.record_button.setText("End Recording")
+        else: # disabling button just in case saving takes time
+            self.recording = False
+            self.record_button.setText("Saving in CSV")
+            self.record_button.setDisabled(True)
+            thread = threading.Thread(target=self.save_csv_thread)
+            thread.start()
+
+    def save_csv_thread(self):
+        self.save_csv()
+        QTimer.singleShot(0, self.finish_save)
+
+    def save_csv(self):
+        import pandas as pd
+        data = self.serialmonitor.data
+        if not data or not any(data.values()):
+            return
+        if not os.path.exists("CSVs"):
+            os.makedirs("CSVs", exist_ok=True)
+        filename = os.path.join("CSVs", datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ".csv") # temp format
+        ''' CSVs/{info}_{date_str}_{hour_str}_{driver_str}_{racecar_str}_{location_str}.csv '''
+        df = pd.DataFrame(data)
+        df.to_csv(filename, index=False)
+        self.serialmonitor.clear_data()
+
+    def finish_save(self):
+        self.record_button.setEnabled(True)
+        self.record_button.setText("Start Recording")
+    #####
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

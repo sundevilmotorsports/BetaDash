@@ -16,6 +16,7 @@ class SerialHandler(QObject):
         super().__init__()
         self.serial_port : str = serial_port #if windows should be a COM and then a number, usually COM3 or COM4, if linux/mac use '/dev/ttyUSB0' or such
         self.baudrate : int = baudrate
+        self.serial = None
         if not self.serial_port == "null":
             self.serial : serial.Serial = serial.Serial(self.serial_port, self.baudrate)
             time.sleep(1)
@@ -40,6 +41,7 @@ class SerialHandler(QObject):
         self.window_size = 20
         self.hertz_rates = [] 
         self.hertz_rate_sum = 0  
+        self.lap_counter = 0
         self.data = {}
         for item in Utils.data_format:
             self.data[item] = []
@@ -138,6 +140,7 @@ class SerialHandler(QObject):
                 self.temp_data["Front Left Shock Pot (mm)"] =(random.random() - .5) * 2
                 self.temp_data["Back Right Shock Pot (mm)"] = (random.random() - .5) * 2
                 self.temp_data["Back Left Shock Pot (mm)"] = (random.random() - .5) * 2
+                self.temp_data["Lap Counter"] = self.lap_counter
 
                 ### Fake Timing Gate
                 if random.random() < .02:
@@ -182,52 +185,10 @@ class SerialHandler(QObject):
                         case 0:
                             for index, item in enumerate(Utils.telemetry_format):
                                 self.temp_data[item] = data[index]
-                            # self.temp_data["Timestamp (ms)"] = data[1]
-                            # self.temp_data["X Acceleration (mG)"] = data[2]
-                            # self.temp_data["Y Acceleration (mG)"]= data[3] 
-                            # self.temp_data["Z Acceleration (mG)"]= data[4]    
-                            # self.temp_data["X Gyro (mdps)"]= data[5]
-                            # self.temp_data["Y Gyro (mdps)"]= data[6]  
-                            # self.temp_data["Z Gyro (mdps)"]= data[7]  
-                            # self.temp_data["Front Left Speed (mph)"]= data[8] 
-                            # self.temp_data["Front Left Brake Temp (C)"] = data[9]  
-                            # self.temp_data["Front Left Ambient Temperature (C)"]= data[10]
-                            # self.temp_data["Front Right Speed (mph)"]= data[11]
-                            # self.temp_data["Front Right Brake Temp (C)"]= data[12]
-                            # self.temp_data["Front Right Ambient Temperature (C)"]= data[13] 
-                            # self.temp_data["Back Left Speed (mph)"]= data[14]
-                            # self.temp_data["Back Left Brake Temp (C)"]= data[15] 
-                            # self.temp_data["Back Left Ambient Temperature (C)"]= data[16] 
-                            # self.temp_data["Back Right Speed (mph)"]= data[17] 
-                            # self.temp_data["Back Right Brake Temp (C)"]= data[18]
-                            # self.temp_data["Back Right Ambient Temperature (C)"]= data[19] 
-                            # self.temp_data["Differential Speed (RPM)"] = data[20]
-                            # self.temp_data["DRS Toggle"] = data[21]
-                            # self.temp_data["Steering Angle (deg)"] = data[22]
-                            # self.temp_data["Throttle Input"] = data[23]
-                            # self.temp_data["Front Brake Pressure (BAR)"] = data[24]
-                            # self.temp_data["Rear Brake Pressure (BAR)"] = data[25]
-                            # self.temp_data["GPS Latitude (DD)"] = data[26]
-                            # self.temp_data["GPS Longitude (DD)"] = data[27]
-                            # self.temp_data["Battery Voltage (mV)"] = data[28]
-                            # self.temp_data["Current Draw (mA)"] = data[29]
-                            # self.temp_data["Front Right Shock Pot (mm)"] = data[30]
-                            # self.temp_data["Front Left Shock Pot (mm)"] = data[31]
-                            # self.temp_data["Back Right Shock Pot (mm)"] = data[32]
-                            # self.temp_data["Back Left Shock Pot (mm)"] = data[33]
+                            self.temp_data["Lap Counter"] = self.lap_counter
                         case 1:
                             for index, item in enumerate(Utils.timing_data_format):
                                 self.temp_timing_data[item] = data[index]
-                            # self.temp_timing_data["Gate Number"] = data[1]
-                            # self.temp_timing_data["Starting Year"] = data[2]
-                            # self.temp_timing_data["Starting Month"] = data[3]
-                            # self.temp_timing_data["Starting Day"] = data[4]
-                            # self.temp_timing_data["Starting Hour"] = data[5]
-                            # self.temp_timing_data["Starting Minute"] = data[6]
-                            # self.temp_timing_data["Starting Second"] = data[7]
-                            # self.temp_timing_data["Starting Millis"] = data[8]
-                            # self.temp_timing_data["Now Millis"] = data[9]
-                            # self.temp_timing_data["Now Minus Starting Millis"] = data[10]
                             self.update_timing_data(self.temp_timing_data)
                         case _:
                             print("SERIALHANDLER IS FAILING ON ALL PROPORTIONS")
@@ -256,7 +217,7 @@ class SerialHandler(QObject):
         
             hertz_rolling_average = self.hertz_rate_sum / len(self.hertz_rates)
             return hertz_rolling_average
-        return None
+        return 0
 
     def stop_reading(self):
         print("Serial Reading is Stopping")
@@ -280,6 +241,10 @@ class SerialHandler(QObject):
         self.data = {}
         for item in Utils.data_format:
             self.data[item] = []
+
+    def increment_lap_counter(self):
+        self.lap_counter += 1
+        return self.lap_counter
         
     def insert_data_to_db(self, db_name : str):
         connection = sqlite3.connect(db_name)

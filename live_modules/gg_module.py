@@ -88,6 +88,16 @@ class ggModule(QMainWindow):
     def update_graph(self, x_values, y_values):
         self.plotItem.setData(x_values, y_values)
 
+    def set_info(self, info):
+        if 'queue' in info:
+            self.queue_size_slider.setValue(info['queue'])
+
+    def get_info(self):
+        return {
+            'type': 'ggModule',
+            'queue': self.queue_size_slider.value(),
+        }
+
     def closeEvent(self, event):
         self.worker.stop()
         event.accept()
