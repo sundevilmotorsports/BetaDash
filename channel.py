@@ -1,9 +1,9 @@
 from PyQt5.QtWidgets import (
     QApplication, QDialog, QVBoxLayout, QHBoxLayout, QGroupBox, 
-    QLabel, QLineEdit, QPushButton, QListWidget, QCheckBox, 
+    QLabel, QLineEdit, QPushButton, QListWidget, QListWidgetItem, QCheckBox, 
     QComboBox, QSpinBox, QTextEdit, QMessageBox, QSpacerItem, QSizePolicy
 )
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QTimer
 import sys
 import qdarkstyle
 from qdarkstyle.dark.palette import DarkPalette  # noqa: E402
@@ -56,19 +56,17 @@ class MathChannelsDialog(QDialog):
             self.channels_list.addItem(channel)
         general_channel_layout.addWidget(self.channels_list)
         button_layout = QHBoxLayout()
-        self.insert_button = QPushButton("Insert")
-        self.save_button = QPushButton("Save")
+        self.insert_button = QPushButton("New")
         self.delete_button = QPushButton("Delete")
 
         self.active_channel_layout = QVBoxLayout()
         self.active_channel_layout.setAlignment(Qt.AlignTop)
         self.active_channel_layout.setContentsMargins(0, 0, 0, 0)
         self.active_channel_layout.setSpacing(0)
-        spacer = QSpacerItem(1, 4, QSizePolicy.Minimum, QSizePolicy.Fixed)
-        self.active_channel_layout.addSpacerItem(spacer)    
+        # spacer = QSpacerItem(1, 4, QSizePolicy.Minimum, QSizePolicy.Fixed)
+        # self.active_channel_layout.addSpacerItem(spacer)    
     
         button_layout.addWidget(self.insert_button)
-        button_layout.addWidget(self.save_button)
         button_layout.addWidget(self.delete_button)
         general_layout.addLayout(self.active_channel_layout)
         general_layout.addLayout(general_channel_layout)
@@ -207,45 +205,43 @@ class MathChannelsDialog(QDialog):
         self.delete_button.clicked.connect(self.delete_channel)
         self.constants_list.clicked.connect(self.update_constant_fields)
         self.insert_button.clicked.connect(self.insert_channel)
-        self.save_button.clicked.connect(self.save_channel_parameters)
-        self.channels_list.itemClicked.connect(self.load_channel_parameters)
+        self.channels_list.currentItemChanged.connect(self.load_channel_parameters)
         self.constants_list.itemClicked.connect(self.load_constant_parameters)
         self.delete_constant_button.clicked.connect(self.delete_constant)
         self.new_constant_button.clicked.connect(self.new_constant)
         self.add_constant_button.clicked.connect(self.add_constant)
-        #self.channel_name_edit.textChanged.connect(self.save_channel_parameters)
-        #self.unit_edit.textChanged.connect(self.save_channel_parameters)
-        # self.channel_plot_combo.currentIndexChanged.connect(self.save_channel_parameters)
-        #self.formula_editor.textChanged.connect(self.save_channel_parameters)
+        self.name_box.editingFinished.connect(self.save_constant_parameters)
+        self.value_box.editingFinished.connect(self.save_constant_parameters)
+        self.channel_name_edit.editingFinished.connect(self.save_channel_parameters)
+        self.unit_edit.editingFinished.connect(self.save_channel_parameters)
+        self.formula_editor.textChanged.connect(self.save_channel_parameters)
         self.ok_button.clicked.connect(self.accept)
         self.cancel_button.clicked.connect(self.close)
 
         ## Doing this last so no problems loading data   
         self.load_data()
-        self.create_checkboxes()
-        # self.load_data()
-        # for i in range(len(self.channel_parameters)):
-        #     checkbox = QCheckBox("")
-        #     # checkbox.setStyleSheet("""
-        #     #     QCheckBox {
-        #     #         margin: 0px;
-        #     #         padding: 0px;
-        #     #     }
-        #     # """)
-        #     #checkbox.clicked.connect(self.manage_checkbox())
-        #     checkbox.setChecked(False)
-        #     self.active_channel_layout.addWidget(checkbox) 
+        self.update_checkboxes()
+    
+        # self.autosave_timer = QTimer(self)
+        # self.autosave_timer.setInterval(20_000)
+        # self.autosave_timer.timeout.connect(self.save_channel_parameters)
+        # self.autosave_timer.start()
 
-        # for channel_name, params in self.channel_parameters.items():
-        #     checkbox_states = params.get("checked", {})
-        #     for i in range(self.active_channel_layout.count()):
-        #         item = self.active_channel_layout.itemAt(i)
-        #         if item is not None:
-        #             widget = item.widget()
-        #             if isinstance(widget, QCheckBox):
-        #                 widget.setChecked(checkbox_states[widget.objectName()])
+    def refresh_channel_list(self):
+        self.channels_list.clear()
+        self.channels_list.addItems(self.channel_parameters.keys())
+        self.update_checkboxes()
 
-    def create_checkboxes(self):
+    def clear_layout(self, layout):
+        while layout.count():
+            item = layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+
+    def update_checkboxes(self):
+        # self.active_channel_layout.clear()
+        self.clear_layout(self.active_channel_layout)
         for channel_name, params in self.channel_parameters.items():
             checkbox = QCheckBox("")
             checkbox.setChecked(params.get("checked", False))
@@ -253,54 +249,52 @@ class MathChannelsDialog(QDialog):
             self.active_channel_layout.addWidget(checkbox)
 
     def checkbox_changed(self):
-        for i in range(self.active_channel_layout.count()):
-            item = self.active_channel_layout.itemAt(i)
-            if item is not None:
-                widget = item.widget()
+        for idx in range(self.active_channel_layout.count()):
+            item = self.active_channel_layout.itemAt(idx)
+            if widget := item.widget():
                 if isinstance(widget, QCheckBox):
-                    channel_name = self.channels_list.item(i-1).text()
-                    if channel_name in self.channel_parameters:
-                        self.channel_parameters[channel_name]["checked"] = widget.isChecked()
+                    name = list(self.channel_parameters)[idx-1]
+                    self.channel_parameters[name]["checked"] = widget.isChecked()
         self.store_data()
 
     def insert_channel(self):
-        channel_name = self.channel_name_edit.text().strip()
-        #plot = self.channel_plot_combo.currentData()
-        unit = self.unit_edit.text().strip()
-        formula = self.formula_editor.toPlainText()
+        # channel_name = self.channel_name_edit.text().strip()
+        # unit = self.unit_edit.text().strip()
+        # formula = self.formula_editor.toPlainText()
+        # if not channel_name:
+        #     return
+        temp_channel_name = "TEMP1"
+        count = 1
+        while 1:
+            if temp_channel_name in self.channel_parameters.keys():
+                temp_channel_name = temp_channel_name[:-1] + str(count)
+                count+=1
+            else:
+                break
 
-        self.channel_parameters[channel_name] = {"name": channel_name, "unit": unit, "formula": formula, "checked": False},
-        self.channels_list.addItem(channel_name)
+        self.channel_parameters[temp_channel_name] = {"name": temp_channel_name, "unit": "", "formula": "", "checked": False}
+        self.channels_list.addItem(temp_channel_name)
         self.channel_name_edit.clear()
+        self.unit_edit.clear()
         checkbox = QCheckBox("")
         checkbox.setChecked(False)
         self.active_channel_layout.addWidget(checkbox)
-        # self.channel_value_box.clear()
+        self.refresh_channel_list()
+        self.update_checkboxes()
         self.store_data()
 
     def delete_channel(self):
-        current_item = self.channels_list.currentItem()
-        channel_name = current_item.text()
-        self.channels_list.takeItem(self.channels_list.row(current_item))
+        item = self.channels_list.currentItem()
+        if not item:
+            return
+        name = item.text()
+        self.channels_list.takeItem(self.channels_list.row(item))
         self.channel_name_edit.clear()
         self.unit_edit.clear()
-        # item = self.active_channel_layout.itemAt(len(self.channel_parameters))
-        # self.active_channel_layout.removeItem(item)
-        # item.deleteLater()
-        # print(len(self.channel_parameters))
-        # print(len(self.active_channel_layout))
-        # print(self.active_channel_layout.count())
-        count = self.active_channel_layout.count()
-        if count > 0:
-            item = self.active_channel_layout.itemAt(count - 1)
-            if item is not None:
-                widget = item.widget()
-                if widget:
-                    widget.deleteLater()
-                self.active_channel_layout.removeItem(item)
 
-        if channel_name in self.channel_parameters:
-            del self.channel_parameters[channel_name]
+        self.channel_parameters.pop(name, None)
+        self.refresh_channel_list()
+        self.update_checkboxes()
         self.store_data()
             
     def update_constant_fields(self):
@@ -312,46 +306,63 @@ class MathChannelsDialog(QDialog):
         self.store_data()
 
     def load_channel_parameters(self, item):
+        if not item:
+            return
         channel_name = item.text()
-        parameters = self.channel_parameters.get(channel_name, {})
-        # if isinstance(parameters, tuple):
-        #     parameters = parameters[0]
-        self.channel_name_edit.setText(parameters.get("name", ""))
-        # index = self.channel_plot_combo.findText(parameters["plot"])
-        # self.channel_plot_combo.setCurrentIndex(index)
-        self.unit_edit.setText(parameters.get("unit", ""))
-        self.formula_editor.setText(parameters.get("formula", ""))
-        self.channels_list.setCurrentItem(item)
+        params = self.channel_parameters.get(channel_name, {})
+        self.channel_name_edit.setText(params.get("name", ""))
+        self.unit_edit.setText(params.get("unit", ""))
+        self.formula_editor.setText(params.get("formula", ""))
         
     def save_channel_parameters(self):
-        current_item = self.channels_list.currentItem()
-        if not current_item:
+        """Save edits made to the currently selected channel."""
+        item = self.channels_list.currentItem()
+        if not item:
             return
-        
-        old_channel_name = current_item.text().strip()
-        new_channel_name = self.channel_name_edit.text().strip()
-        current_item.setText(new_channel_name)
-        saved_index = None
-        count = self.channels_list.count()
-        # for i in range(count):
-        #     item = self.channels_list.item(i)
-        #     if item is not None and item.text() == old_channel_name:
-        #         saved_index = i
-        #         self.channels_list.takeItem(i)
-        #         break
 
-        updated_parameters = {
-            "name": new_channel_name,
-            "unit": self.unit_edit.text().strip(),
-            "formula": self.formula_editor.toPlainText().strip(),
-            "checked": False
-        }
+        old_key   = item.text()
+        new_name  = self.channel_name_edit.text().strip() or old_key
+        new_unit  = self.unit_edit.text().strip()
+        new_form  = self.formula_editor.toPlainText().strip()
+        # preserve its checked state
+        checked   = self.channel_parameters.get(old_key, {}).get("checked", False)
 
-        #del self.channel_parameters[old_channel_name]
-        self.channel_parameters[new_channel_name] = updated_parameters
-        self.channels_list.clear()
-        for channel in self.channel_parameters.keys():
-            self.channels_list.addItem(channel)
+        # if they renamed it, re‑key the dict & update the list item
+        if new_name != old_key:
+            data = self.channel_parameters.pop(old_key, None) or {}
+            data.update(name=new_name, unit=new_unit, formula=new_form, checked=checked)
+            self.channel_parameters[new_name] = data
+            item.setText(new_name)
+        else:
+            # just update fields in place
+            self.channel_parameters[old_key].update(
+                name=new_name, unit=new_unit, formula=new_form, checked=checked
+            )
+
+        # refresh the checkboxes (so their labels stay in sync)
+        self.update_checkboxes()
+        # persist immediately
+        self.store_data()
+
+    def on_channel_changed(self, current: QListWidgetItem, previous: QListWidgetItem):
+        if previous:
+            old_key = previous.text()
+            name    = self.channel_name_edit.text().strip()
+            unit    = self.unit_edit.text().strip()
+            formula = self.formula_editor.toPlainText().strip()
+            if old_key:
+                old_checked = self.channel_parameters.get(old_key, {}).get("checked", False)
+                self.channel_parameters.pop(old_key, None)
+                new_key = name or old_key
+                self.channel_parameters[new_key] = {
+                    "name": new_key,
+                    "unit": unit,
+                    "formula": formula,
+                    "checked": old_checked
+                }
+                previous.setText(new_key)
+        if current:
+            self.load_channel_parameters(current)
         self.store_data()
     
     def load_constant_parameters(self, item):
@@ -362,6 +373,30 @@ class MathChannelsDialog(QDialog):
             self.value_box.setText(str(constant["value"]))
         except Exception as e:
             print("Big Problems Running: ", str(e))
+
+    def save_constant_parameters(self):
+        item = self.constants_list.currentItem()
+        if not item:
+            return
+
+        old_key = item.text()
+        new_name = self.name_box.text().strip()
+        try:
+            new_value = float(self.value_box.text().strip())
+        except ValueError:
+            return
+
+        if new_name and new_name != old_key:
+            old = self.constants.pop(old_key, None)
+            if old is not None:
+                old["name"] = new_name
+                old["value"] = new_value
+                self.constants[new_name] = old
+            item.setText(new_name)
+        else:
+            self.constants[old_key]["value"] = new_value
+
+        self.store_data()
 
     def new_constant(self):
         try: 
@@ -434,7 +469,7 @@ class MathChannelsDialog(QDialog):
             for constant in self.constants.values():
                 if constant["name"] in formula:
                     formula = formula.replace(constant["name"], str(constant["value"]))
-            item = self.active_channel_layout.itemAt(idx + 1).widget()
+            item = self.active_channel_layout.itemAt(idx).widget()
             if isinstance(item, QCheckBox) and item.isChecked():
                 formulas.append(formula)
         #print(formulas)
@@ -479,10 +514,10 @@ class MathChannelsDialog(QDialog):
             if isinstance(value, dict):
                 self.constants[key] = value
 
-        #print(f"self.channel_parameters: {self.channel_parameters} (type: {type(self.channel_parameters)})")
-        # self.constants = data.get("constants", {})
-        # for constant in self.constants.keys():
-        #     self.constants_list.addItem(constant)
+        # print(f"self.channel_parameters: {self.channel_parameters} (type: {type(self.channel_parameters)})")
+        self.constants = data.get("constants", {})
+        for constant in self.constants.keys():
+            self.constants_list.addItem(constant)
         self.channels_list.clear()
         for channel in self.channel_parameters.keys():
             self.channels_list.addItem(channel)

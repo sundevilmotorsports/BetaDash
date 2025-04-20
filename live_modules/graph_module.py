@@ -212,7 +212,7 @@ class GraphModule(QMainWindow):
 
     @pyqtSlot(dict)
     def update_graph(self, new_data):
-        try:
+        # try:
             x_column = self.x_combo.currentText()
             y_columns = self.y_combo.currentData()
             queue_size = self.queue_size_slider.value()
@@ -223,7 +223,7 @@ class GraphModule(QMainWindow):
 
             for index, x in enumerate(x_values):
                 if(x == 0):
-                    print("Zero x NOT ALLOWED BOZO")
+                    # print("Zero x NOT ALLOWED BOZO")
                     np.delete(x_values, index)
 
             for plot_item in self.plot_items.values():
@@ -235,15 +235,16 @@ class GraphModule(QMainWindow):
                     func = plot_item.math_ch
                     column_data = []
                     for name in plot_item.y_column:
-                        column_data.append(np.asarray(new_data[name][-queue_size:]))
+                        # print(name, "→", new_data[name], "(type:", type(new_data[name]), ", ndim:", getattr(new_data[name], 'ndim', None), ")") 
+                        column_data.append(np.asarray(list(new_data[name])[-queue_size:]))
                     # column_data = [np.asarray(new_data[name])[-queue_size:] for name in plot_item.y_column]
                     if column_data:
                         plot_item.data_item.setData(x=x_values, y=func(*column_data))
                     else:
                         y_values = [func(*column_data) for x in x_values]
                         plot_item.data_item.setData(x=x_values, y=y_values) 
-        except Exception as e:
-            print("Error: ", e)
+        # except Exception as e:
+        #     print("Ploting error: ", e)
 
     def modify_plots(self, lambda_func_list : list, input_formulas : list, unique_variables_list : list):
         y_columns = self.y_combo.currentData()

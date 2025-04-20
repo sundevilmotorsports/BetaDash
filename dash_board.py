@@ -345,7 +345,7 @@ class Dashboard(QMainWindow):
 
         ### for recording
         self.recording = False
-        self.record_button = QPushButton("Start Recording")
+        self.record_button = QPushButton("Start Recording 🔴")
         self.record_button.setMaximumWidth(200)
         self.record_button.clicked.connect(self.toggle_recording)
         ###
