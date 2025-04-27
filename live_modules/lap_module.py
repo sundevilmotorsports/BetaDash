@@ -140,8 +140,8 @@ class LapModule(QMainWindow):
             self.lap_timers[lap_data["Gate Number"][-1]].Starting_Second = lap_data["Starting Second"][-1]
             self.lap_timers[lap_data["Gate Number"][-1]].Starting_Millis = lap_data["Starting Millis"][-1]
             self.lap_timers[lap_data["Gate Number"][-1]].Starting_Delta = lap_data["Starting Year"][-1] * 31557600000 + lap_data["Starting Month"][-1] * 2629800000 + lap_data["Starting Day"][-1] * 86400000 + lap_data["Starting Hour"][-1] * 3600000 + lap_data["Starting Minute"][-1] * 60000 + lap_data["Starting Second"][-1] * 1000 + lap_data["Starting Millis"][-1]
-            self.lap_timers[lap_data["Gate Number"][-1]].Now_Millis = lap_data["Now Millis"][-1] + self.lap_timers[lap_data["Gate Number"][-1]].Starting_Delta
             self.lap_timers[lap_data["Gate Number"][-1]].Prev_Now_Millis = self.lap_timers[lap_data["Gate Number"][-1]].Now_Millis
+            self.lap_timers[lap_data["Gate Number"][-1]].Now_Millis = lap_data["Now Millis"][-1] + self.lap_timers[lap_data["Gate Number"][-1]].Starting_Delta
 
         self.update_lists()
 
@@ -194,6 +194,7 @@ class LapModule(QMainWindow):
                     prev_gate_number = int(items[index - 1].split(":")[-1].strip())
                     if prev_gate_number in self.lap_timers:
                         shotgun_diff = first_starting_time - self.lap_timers[prev_gate_number].Starting_Delta
+                        # print(first_starting_time, self.lap_timers[prev_gate_number].Starting_Delta, shotgun_diff)
                         if index - 1 == 0:
                             val = f"S{index}: " + str(round((now_millis - (self.lap_timers[prev_gate_number].Now_Millis)) / 1000, 3))
                         else:
