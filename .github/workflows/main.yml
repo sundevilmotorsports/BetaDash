@@ -28,10 +28,17 @@ jobs:
       run: |
         pyinstaller dash_board.py --onefile --name SDM_DataDash
 
-    - name: Create release
+    - name: Create Git tag
+      run: |
+        git config user.name "${{ github.actor }}"
+        git config user.email "${{ github.actor }}@users.noreply.github.com"
+        git tag v${{ github.run_number }}
+        git push origin v${{ github.run_number }}
+
+    - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
-        name: "Release ${{ github.run_number }}"
+        name: "Release v${{ github.run_number }}"
         tag_name: "v${{ github.run_number }}"
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -40,5 +47,6 @@ jobs:
       uses: softprops/action-gh-release@v2
       with:
         files: dist/SDM_DataDash.exe
+        tag_name: "v${{ github.run_number }}"
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
