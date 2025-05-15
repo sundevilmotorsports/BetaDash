@@ -28,8 +28,17 @@ jobs:
       run: |
         pyinstaller dash_board.py --onefile --name SDM_DataDash
 
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
+    - name: Create release
+      uses: softprops/action-gh-release@v2
       with:
-        name: SDM_DataDash-exe
-        path: dist/SDM_DataDash.exe
+        name: "Release ${{ github.run_number }}"
+        tag_name: "v${{ github.run_number }}"
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload release asset
+      uses: softprops/action-gh-release@v2
+      with:
+        files: dist/SDM_DataDash.exe
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
